@@ -15,7 +15,7 @@ export type SourceMode = "tse" | "mock";
 
 /** Destaque padrão deste projeto. Para desativar, defina FEATURED_CANDIDATES= (vazio) no .env. */
 const DEFAULT_FEATURED =
-  "deputado-federal:sp:ROBERTINHO DA PADARIA;deputado-federal:sp:EDUARDO CURY;deputado-estadual:sp:LETICIA AGUIAR;deputado-estadual:sp:THOMAS HENRIQUE";
+  "deputado-federal:sp:ROBERTINHO DA PADARIA;deputado-federal:sp:EDUARDO CURY;deputado-estadual:sp:LETICIA AGUIAR;deputado-estadual:sp:THOMAZ HENRIQUE";
 
 export interface AppConfig {
   source: SourceMode;
