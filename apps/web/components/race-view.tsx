@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { OFFICES, formatInt, formatPct, formatTimeBrasilia, type OfficeKey, type Snapshot } from "@apuracao/core";
+import { OFFICES, formatDateTimeBrasilia, formatInt, formatPct, formatTimeBrasilia, type OfficeKey, type Snapshot } from "@apuracao/core";
 import type { PublishedRace } from "@/lib/api-types";
 import { useLive } from "./use-live";
 import { MajoritarianTable } from "./majoritarian-table";
@@ -99,7 +99,7 @@ function Indicators({ race }: { race: PublishedRace }) {
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-sm text-muted">Seções totalizadas</span>
         <span className="text-sm text-muted">
-          Atualização oficial: <strong className="text-text">{formatTimeBrasilia(race.officialTimestamp)}</strong>
+          Atualização oficial: <strong className="text-text">{formatDateTimeBrasilia(race.officialTimestamp)}</strong>
         </span>
       </div>
       <div className="mt-1 text-3xl font-bold">{formatPct(race.sectionsTotalizedPct)}</div>

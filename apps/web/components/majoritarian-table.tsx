@@ -45,7 +45,7 @@ export function MajoritarianTable({ race, seats }: { race: PublishedRace; seats:
                 <PositionChange change={c.positionChange} />
               </span>
               <span className="w-28 text-right text-xs text-muted">
-                {c.gapToPrevious !== null ? `−${formatInt(c.gapToPrevious)} do ${c.position - 1}º` : ""}
+                {c.gapToPrevious ? `−${formatInt(c.gapToPrevious)} do ${c.position - 1}º` : ""}
               </span>
             </div>
             {c.voteDestination && !/^v[áa]lido$/i.test(c.voteDestination) && (
