@@ -311,5 +311,7 @@ describe("candidatos em destaque", () => {
     expect(matchesCandidate({ name: "EDUARDO SIVINSKI", number: "1" }, "Eduardo Sivinsk")).toBe(true);
     expect(matchesCandidate({ name: "EDUARDO SIVINSK", number: "1" }, "Eduardo Sivinsk")).toBe(true);
     expect(matchesCandidate({ name: "DR. ELTON", number: "1" }, "DR ELTON")).toBe(true);
+    expect(matchesCandidate({ name: "DUDU SIVINSKI", number: "1" }, "EDUARDO SIVINSK|DUDU SIVINSK")).toBe(true);
+    expect(matchesCandidate({ name: "EDUARDO CURY", number: "1" }, "EDUARDO SIVINSK|DUDU SIVINSK")).toBe(false);
   });
 });

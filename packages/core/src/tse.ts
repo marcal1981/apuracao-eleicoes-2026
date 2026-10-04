@@ -381,8 +381,10 @@ export function normalizePlaceName(name: string): string {
     .replace(/[^A-Z0-9]/g, "");
 }
 
-/** Candidato em destaque: "#1234" busca pelo número; outro texto busca no nome (sem acentos). */
+/** Candidato em destaque: "#1234" busca pelo número; outro texto busca no nome (sem acentos); "|" separa alternativas. */
 export function matchesCandidate(c: { name: string; number: string }, query: string): boolean {
+  // Alternativas separadas por "|": "EDUARDO SIVINSK|DUDU SIVINSK".
+  if (query.includes("|")) return query.split("|").some((alt) => matchesCandidate(c, alt));
   const q = query.trim();
   if (!q) return false;
   if (q.startsWith("#")) return c.number === q.slice(1).trim();

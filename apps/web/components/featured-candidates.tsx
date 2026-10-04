@@ -69,7 +69,7 @@ export function FeaturedCandidates({ race, history, queries, pinned, onUnpin }: 
       ))}
       {missing.map((q) => (
         <p key={q} className="rounded-lg border border-dashed border-border px-4 py-2 text-sm text-muted">
-          Candidato em destaque “{q}” não encontrado nesta disputa. Confira o nome de urna, o cargo e a UF.
+          Candidato em destaque “{q.split("|").join(" / ")}” não encontrado nesta disputa. Confira o nome de urna, o cargo e a UF.
         </p>
       ))}
     </div>
