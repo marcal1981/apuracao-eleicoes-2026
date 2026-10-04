@@ -1,6 +1,6 @@
 import { formatInt, formatPct } from "@apuracao/core";
 import type { PublishedRace } from "@/lib/api-types";
-import { CandidateTag, PositionChange } from "./status-badge";
+import { CandidateTag, ElectedLine, PositionChange } from "./status-badge";
 import { PinButton } from "./pin-button";
 
 /** Ranking de cargos majoritários. A linha divisória marca as vagas em disputa (ex.: 2 no Senado). */
@@ -40,6 +40,7 @@ export function MajoritarianTable({
                     </span>
                   )}
                 </div>
+                <ElectedLine elected={c.elected} officialStatus={c.officialStatus} showProjection={false} />
                 <div className="truncate text-xs text-muted">
                   {c.number} · {c.party}
                   {c.coalition ? ` (${c.coalition})` : ""}

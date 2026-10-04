@@ -28,6 +28,8 @@ export interface CandidateResult {
   gapToPrevious: number | null;
   /** Situação oficial do candidato (ex.: "Eleito", "2º turno", "Suplente"). */
   officialStatus: string;
+  /** Projeção da plataforma com os votos apurados (proporcionais): eleito por "QP" ou por "média". */
+  projected?: "QP" | "média" | null;
   /** Somente verdadeiro quando o TSE informa o candidato como eleito. */
   elected: boolean;
   /** Indica quando o TSE marca o candidato como classificado para o 2º turno. */
@@ -65,6 +67,13 @@ export interface RaceResult {
   officialTimestamp: string | null;
   totals: RaceTotals;
   candidates: CandidateResult[];
+  /** Projeção de cadeiras (somente proporcionais com votos apurados). */
+  projection?: {
+    seats: number;
+    validVotes: number;
+    quotient: number;
+    groups: { name: string; votes: number; seats: number }[];
+  } | null;
 }
 
 /** Ponto da série histórica, guardado a cada atualização para gráficos e variação de posição. */

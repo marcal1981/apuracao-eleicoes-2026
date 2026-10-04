@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { formatInt, formatPct } from "@apuracao/core";
 import type { PublishedRace } from "@/lib/api-types";
-import { CandidateTag, PositionChange } from "./status-badge";
+import { CandidateTag, ElectedLine, PositionChange } from "./status-badge";
 import { PinButton } from "./pin-button";
 
 const PAGE = 50;
@@ -26,6 +26,9 @@ export function ProportionalTable({
   const [limit, setLimit] = useState(PAGE);
 
   const elected = race.candidates.filter((c) => c.elected);
+  // Projeção só enquanto o TSE não divulga a situação oficial dos candidatos.
+  const showProjection = elected.length === 0 && race.status !== "TOTALIZACAO_FINALIZADA" && !!race.projection;
+  const projectedSeats = race.projection?.groups.filter((g) => g.seats > 0) ?? [];
   const byParty = useMemo(() => {
     const map = new Map<string, number>();
     for (const c of elected) {
@@ -39,7 +42,7 @@ export function ProportionalTable({
     const q = query.trim().toLowerCase();
     return race.candidates.filter(
       (c) =>
-        (!onlyElected || c.elected) &&
+        (!onlyElected || c.elected || (showProjection && !!c.projected)) &&
         (!q ||
           c.name.toLowerCase().includes(q) ||
           c.party.toLowerCase().includes(q) ||
@@ -62,10 +65,27 @@ export function ProportionalTable({
             ))}
           </ul>
         </div>
+      ) : showProjection && race.projection ? (
+        <div className="rounded-xl border border-elected/40 bg-surface p-4">
+          <h2 className="font-semibold">
+            Projeção de cadeiras com {formatPct(race.sectionsTotalizedPct)} das seções apuradas ({race.projection.seats} vagas)
+          </h2>
+          <p className="mt-1 text-xs text-muted">
+            Cálculo da plataforma pelas regras do Código Eleitoral (quociente eleitoral {formatInt(race.projection.quotient)},
+            quociente partidário e maiores médias). Muda conforme a apuração avança; o resultado oficial é o do TSE.
+          </p>
+          <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+            {projectedSeats.map((g) => (
+              <li key={g.name} className="flex justify-between gap-3 border-b border-border py-1">
+                <span className="truncate">{g.name}</span>
+                <strong className="text-elected">{g.seats}</strong>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : (
         <p className="rounded-lg border border-border bg-surface px-4 py-2 text-sm text-muted">
-          Os eleitos serão indicados quando o TSE divulgar a situação oficial dos candidatos. A posição por votação
-          nominal não determina, sozinha, quem ocupa as cadeiras.
+          A projeção de eleitos aparece assim que houver votos apurados.
         </p>
       )}
 
@@ -82,7 +102,7 @@ export function ProportionalTable({
         />
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={onlyElected} onChange={(e) => setOnlyElected(e.target.checked)} />
-          Somente eleitos
+          {showProjection ? "Somente eleitos (projeção)" : "Somente eleitos"}
         </label>
       </div>
 
@@ -109,6 +129,12 @@ export function ProportionalTable({
                       <PinButton name={c.name} active={pinned.includes(c.id)} onClick={() => onTogglePin(c.id)} />
                     )}
                   </div>
+                  <ElectedLine
+                    elected={c.elected}
+                    officialStatus={c.officialStatus}
+                    projected={c.projected}
+                    showProjection={showProjection}
+                  />
                   <div className="text-xs text-muted">
                     {c.number} · {c.party}
                     {c.coalition ? ` (${c.coalition})` : ""}

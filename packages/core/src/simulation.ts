@@ -57,7 +57,7 @@ const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 function candidateCount(office: OfficeKey, round: number): number {
   if (round === 2) return 2;
-  if (OFFICES[office].system === "proporcional") return 60;
+  if (OFFICES[office].system === "proporcional") return 300;
   if (office === "senador") return 7;
   return office === "presidente" ? 9 : 6;
 }

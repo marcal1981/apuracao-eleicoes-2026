@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatInt, formatPct, matchesCandidate, type CandidateResult, type Snapshot } from "@apuracao/core";
 import type { PublishedRace } from "@/lib/api-types";
-import { CandidateTag, PositionChange } from "./status-badge";
+import { CandidateTag, ElectedLine, PositionChange } from "./status-badge";
 
 const storageKey = (raceKey: string) => `apuracao:fixados:${raceKey}`;
 
@@ -102,6 +102,12 @@ function FeaturedCard({
             <h2 className="truncate text-xl font-bold">{c.name}</h2>
             <CandidateTag elected={c.elected} secondRound={c.secondRound} officialStatus={c.officialStatus} />
           </div>
+          <ElectedLine
+            elected={c.elected}
+            officialStatus={c.officialStatus}
+            projected={c.projected}
+            showProjection={!race.candidates.some((x) => x.elected) && race.status !== "TOTALIZACAO_FINALIZADA"}
+          />
           <div className="truncate text-xs text-muted">
             {c.number} · {c.party}
             {c.coalition ? ` (${c.coalition})` : ""}
@@ -162,7 +168,9 @@ function FeaturedCard({
       {series.length > 1 && <Sparkline values={series.map((s) => s.votes)} />}
       {race.office.startsWith("deputado") && !c.elected && (
         <p className="mt-2 text-[11px] text-muted">
-          Em eleições proporcionais a posição por votos não garante vaga; a situação de eleito vem do TSE.
+          {c.projected
+            ? "Projeção pelas regras do quociente eleitoral com os votos apurados até agora; o oficial é o do TSE."
+            : "Pela projeção atual (quociente eleitoral e médias), ainda fora das vagas."}
         </p>
       )}
     </article>

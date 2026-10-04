@@ -34,11 +34,35 @@ export function PositionChange({ change }: { change: number | null }) {
   );
 }
 
-/** Situação oficial do candidato. "Eleito" só aparece quando o TSE informa. */
-export function CandidateTag({ elected, secondRound, officialStatus }: { elected: boolean; secondRound: boolean; officialStatus: string }) {
-  if (elected)
-    return <span className="rounded bg-elected/15 px-1.5 py-0.5 text-[11px] font-bold uppercase text-elected">{officialStatus || "Eleito"}</span>;
+/** Marca "2º turno" ao lado do nome. A situação de eleito aparece em verde abaixo do nome (ElectedLine). */
+export function CandidateTag({ secondRound }: { elected?: boolean; secondRound: boolean; officialStatus?: string }) {
   if (secondRound)
     return <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[11px] font-bold uppercase text-accent">2º turno</span>;
+  return null;
+}
+
+/**
+ * Linha verde abaixo do nome: "Eleito" oficial (TSE) ou "Eleito — projeção" calculada com os votos
+ * apurados até agora. A projeção some quando o TSE passa a informar a situação oficial.
+ */
+export function ElectedLine({
+  elected,
+  officialStatus,
+  projected,
+  showProjection,
+}: {
+  elected: boolean;
+  officialStatus: string;
+  projected?: "QP" | "média" | null;
+  showProjection: boolean;
+}) {
+  if (elected)
+    return <div className="text-xs font-bold text-elected">✔ {officialStatus || "Eleito"} (oficial TSE)</div>;
+  if (showProjection && projected)
+    return (
+      <div className="text-xs font-semibold text-elected">
+        Eleito {projected === "QP" ? "por QP" : "por média"} — projeção
+      </div>
+    );
   return null;
 }

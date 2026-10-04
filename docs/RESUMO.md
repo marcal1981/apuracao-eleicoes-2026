@@ -57,6 +57,17 @@ Plataforma independente para acompanhar a apuração das Eleições 2026 a parti
   - Lista de municípios do TSE: `…/6259/config/mun-e006259-cm.json`. Arquivo de cada cidade: `…/dados/sp/sp{codigo}-c0003-e006259-u.json`. Atualização a cada 60 s (`MUNICIPAL_POLL_MS`).
   - Desenho das cidades: malha do IBGE (CC0), gerada com `node scripts/build-municipal-map.mjs sp`. Para outra UF, gere o arquivo e inclua a sigla em `MUNICIPAL_UFS` (ex.: `sp,rj`).
 
+### Projeção de eleitos (Deputados)
+- Com os votos apurados até o momento, a plataforma calcula a distribuição de cadeiras pelas regras do Código Eleitoral:
+  1. quociente eleitoral;
+  2. quociente partidário, com mínimo de 10% do QE por candidato;
+  3. sobras pelas maiores médias, exigindo 80% do QE do partido e 20% do QE do candidato;
+  4. vagas restantes pelas maiores médias, sem exigências.
+- Federações contam como um único partido. Votos de legenda são somados quando o arquivo do TSE os informa.
+- Os eleitos projetados aparecem **em verde abaixo do nome**: "Eleito por QP — projeção" ou "Eleito por média — projeção".
+- Quando o TSE divulga a situação oficial, a projeção some e passa a valer "✔ Eleito (oficial TSE)".
+- Vagas: Câmara com 513 deputados (SP = 70) e assembleias pelo art. 27 da Constituição (SP = 94). O número de vagas do arquivo do TSE tem prioridade quando é plausível.
+
 ### API própria (`/api/v1`)
 | Rota | Descrição |
 |---|---|

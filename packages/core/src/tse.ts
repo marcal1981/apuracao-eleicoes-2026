@@ -7,6 +7,7 @@
 // A configuração de eleições fica em {base}/comum/config/ele-c.json.
 
 import { OFFICES, type OfficeKey } from "./domain";
+import { projectSeats, seatsFor } from "./seats";
 import type { CandidateResult, RaceResult, RaceStatus } from "./types";
 
 export interface TseEndpointConfig {
@@ -126,6 +127,23 @@ function readCandidate(c: Record<string, unknown>, party: string, coalition: str
 }
 
 /** Lista de candidatos: formato 2026 (carg → agr → par → cand) ou 2022 (cand). */
+/** Votos de legenda por partido/federação, quando o arquivo os informa. */
+function readLegendVotes(r: Record<string, unknown>): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const cargo of arr(r.carg)) {
+    for (const agr of arr(cargo.agr)) {
+      for (const par of arr(agr.par)) {
+        const legend = parseTseNumber(pick(par.vl, par.tvl, par.vlg, par.vleg));
+        if (!legend) continue;
+        const sg = str(par.sg) || str(par.nm);
+        const group = str(agr.nm) && str(agr.nm) !== sg ? str(agr.nm) : sg;
+        out.set(group, (out.get(group) ?? 0) + legend);
+      }
+    }
+  }
+  return out;
+}
+
 function readCandidates(r: Record<string, unknown>): Unranked[] {
   if (Array.isArray(r.carg)) {
     const out: Unranked[] = [];
@@ -178,6 +196,30 @@ export function parseSimplifiedResult(raw: unknown, ctx: ParseContext): RaceResu
     if (cand.votes < 0) throw new TseParseError(`Votação negativa para ${cand.name}`);
   }
 
+  // Projeção de cadeiras (proporcionais), enquanto o TSE não divulga a situação oficial.
+  let projection: RaceResult["projection"] = null;
+  // Usa o número de vagas do arquivo quando ele é plausível; senão, a tabela constitucional.
+  const tableSeats = seatsFor(ctx.office, ctx.scope);
+  const fileSeats = parseTseNumber(arr(r.carg)[0]?.nv);
+  const seats =
+    fileSeats > 0 && (!tableSeats || Math.abs(fileSeats - tableSeats) <= tableSeats * 0.3) ? fileSeats : tableSeats;
+  const validForSeats = parseTseNumber(pick(obj(r.v)?.vv, r.vv));
+  if (OFFICES[ctx.office].system === "proporcional" && seats && validForSeats > 0) {
+    const result = projectSeats(
+      candidates
+        .filter((c) => !c.voteDestination || /^v[áa]lido/i.test(c.voteDestination))
+        .map((c, i) => ({ id: c.id, votes: c.votes, group: c.coalition ?? c.party, seq: i })),
+      validForSeats,
+      seats,
+      readLegendVotes(r),
+    );
+    if (result) {
+      for (const c of candidates) c.projected = result.elected.get(c.id) ?? null;
+      const { elected: _e, ...rest } = result;
+      projection = rest;
+    }
+  }
+
   const valid = parseTseNumber(pick(v?.vv, r.vv));
   const blank = parseTseNumber(pick(v?.vb, r.vb));
   const nulls = parseTseNumber(pick(v?.tvn, v?.vn, r.tvn));
@@ -211,6 +253,7 @@ export function parseSimplifiedResult(raw: unknown, ctx: ParseContext): RaceResu
       nullPct: parseTseNumber(pick(v?.ptvn, v?.pvn, r.ptvn)) || pctOf(nulls, turnout),
     },
     candidates,
+    projection,
   };
 }
 
