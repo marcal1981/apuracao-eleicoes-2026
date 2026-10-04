@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --border: #e3e6eb;
+  --text: #14171c;
+  --muted: #5b6472;
+  --accent: #1d4ed8;
+  --up: #15803d;
+  --down: #b91c1c;
+  --elected: #15803d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1116;
+    --surface: #161a21;
+    --border: #2a303a;
+    --text: #e8ebf0;
+    --muted: #9aa3b2;
+    --accent: #7aa2ff;
+    --up: #4ade80;
+    --down: #f87171;
+    --elected: #4ade80;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-elected: var(--elected);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
