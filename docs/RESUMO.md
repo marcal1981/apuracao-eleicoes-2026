@@ -76,6 +76,14 @@ Plataforma independente para acompanhar a apuração das Eleições 2026 a parti
 - O servidor baixa o arquivo municipal do cargo de cada cidade (`…/dados/sp/sp{codigo}-c0007-e006259-u.json` para Estadual) só para disputas com candidatos em destaque, a cada 3 minutos (`CANDIDATE_CITIES_POLL_MS`), com ETag para não repetir downloads.
 - API: `GET /api/v1/states/sp/candidate-cities?office=deputado-estadual`.
 
+### Página "Arquivos" (menu do topo)
+- Planilhas (CSV para Excel):
+  - resultado de qualquer cargo e UF (também pelo botão **"Baixar planilha"** em cada disputa);
+  - votos por cidade dos candidatos em destaque;
+  - andamento da apuração por município de SP;
+  - registro de auditoria.
+- **Arquivos originais do TSE** guardados pela plataforma: abrir no navegador, baixar e ver cada versão recebida, com horário e SHA-256.
+
 ### API própria (`/api/v1`)
 | Rota | Descrição |
 |---|---|

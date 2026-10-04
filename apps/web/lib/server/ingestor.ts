@@ -390,6 +390,11 @@ export class Ingestor extends EventEmitter {
     };
   }
 
+  /** Acesso somente leitura aos arquivos guardados (página "Arquivos"). */
+  get files() {
+    return this.archive;
+  }
+
   getAudit(limit = 100): AuditEvent[] {
     return this.audit.slice(-limit).reverse();
   }

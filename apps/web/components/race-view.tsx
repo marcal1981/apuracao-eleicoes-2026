@@ -59,7 +59,17 @@ export function RaceView({ office, scope, round, raceKey, title, initial, initia
             {round}º turno · {def.system === "majoritario" ? `Vagas em disputa: ${def.seats ?? 1}` : "Eleição proporcional"}
           </p>
         </div>
-        <StatusBadge status={race?.status ?? "AGUARDANDO"} stale={race?.stale ?? false} connection={connection} />
+        <div className="flex items-center gap-2">
+          {race && (
+            <a
+              href={`/api/v1/export/results?${query}`}
+              className="rounded-full border border-border px-3 py-1 text-xs font-semibold hover:border-accent hover:text-accent"
+            >
+              Baixar planilha
+            </a>
+          )}
+          <StatusBadge status={race?.status ?? "AGUARDANDO"} stale={race?.stale ?? false} connection={connection} />
+        </div>
       </div>
 
       {!race ? (

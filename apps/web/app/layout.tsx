@@ -32,9 +32,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         )}
         <header className="border-b border-border bg-surface">
           <div className="mx-auto max-w-6xl px-4 py-3">
-            <Link href="/" className="text-lg font-bold tracking-tight">
-              Apuração Eleições 2026
-            </Link>
+            <div className="flex items-center justify-between gap-3">
+              <Link href="/" className="text-lg font-bold tracking-tight">
+                Apuração Eleições 2026
+              </Link>
+              <div className="flex gap-3 text-sm">
+                <Link href="/arquivos" className="hover:text-accent">
+                  Arquivos
+                </Link>
+                <Link href="/status" className="hover:text-accent">
+                  Status
+                </Link>
+              </div>
+            </div>
             <OfficeNav />
           </div>
         </header>
@@ -50,7 +60,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </p>
           <p className="mt-2">
             <Link className="underline" href="/como-funciona">Como funciona</Link> ·{" "}
-            <Link className="underline" href="/status">Status da atualização</Link>
+            <Link className="underline" href="/status">Status da atualização</Link> ·{" "}
+            <Link className="underline" href="/arquivos">Arquivos e planilhas</Link>
           </p>
         </footer>
       </body>
