@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { formatInt, formatPct } from "@apuracao/core";
 import type { PublishedRace } from "@/lib/api-types";
 import { CandidateTag, PositionChange } from "./status-badge";
+import { PinButton } from "./pin-button";
 
 const PAGE = 50;
 
@@ -11,7 +12,15 @@ const PAGE = 50;
  * Deputados: a ordem por votos não define os eleitos (há quociente eleitoral e sobras).
  * A lista de eleitos e a distribuição por partido/federação usam apenas a situação oficial do TSE.
  */
-export function ProportionalTable({ race }: { race: PublishedRace }) {
+export function ProportionalTable({
+  race,
+  pinned = [],
+  onTogglePin,
+}: {
+  race: PublishedRace;
+  pinned?: string[];
+  onTogglePin?: (id: string) => void;
+}) {
   const [query, setQuery] = useState("");
   const [onlyElected, setOnlyElected] = useState(false);
   const [limit, setLimit] = useState(PAGE);
@@ -96,6 +105,9 @@ export function ProportionalTable({ race }: { race: PublishedRace }) {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{c.name}</span>
                     <CandidateTag elected={c.elected} secondRound={false} officialStatus={c.officialStatus} />
+                    {onTogglePin && (
+                      <PinButton name={c.name} active={pinned.includes(c.id)} onClick={() => onTogglePin(c.id)} />
+                    )}
                   </div>
                   <div className="text-xs text-muted">
                     {c.number} · {c.party}

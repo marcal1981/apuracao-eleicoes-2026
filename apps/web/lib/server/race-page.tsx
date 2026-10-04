@@ -17,6 +17,7 @@ export function RacePage({ office, scope }: { office: OfficeKey; scope: string }
       title={`${OFFICES[office].name} — ${place}`}
       initial={ingestor.getRace(key)}
       initialHistory={ingestor.getHistory(key)}
+      featuredQueries={ingestor.featuredQueries(office, scope)}
     />
   );
 }

@@ -295,3 +295,18 @@ describe("municípios", () => {
     expect(normalizePlaceName("Santa Bárbara d'Oeste")).toBe(normalizePlaceName("SANTA BÁRBARA D'OESTE"));
   });
 });
+
+describe("candidatos em destaque", () => {
+  it("interpreta a configuração e encontra por nome ou número", async () => {
+    const { parseFeaturedCandidates, matchesCandidate } = await import("../src");
+    expect(parseFeaturedCandidates("deputado-federal:SP:Robertinho da Padaria; invalido:sp:x ;senador:rj:#123")).toEqual([
+      { office: "deputado-federal", scope: "sp", query: "Robertinho da Padaria" },
+      { office: "senador", scope: "rj", query: "#123" },
+    ]);
+    expect(matchesCandidate({ name: "ROBERTINHO DA PADARIA", number: "4455" }, "Robertinho da Padaria")).toBe(true);
+    expect(matchesCandidate({ name: "ROBERTO PADARIA", number: "4455" }, "robertinho da padaria")).toBe(false);
+    expect(matchesCandidate({ name: "X", number: "4455" }, "#4455")).toBe(true);
+    expect(matchesCandidate({ name: "CANDIDATO K1", number: "1" }, "Candidato K")).toBe(false);
+    expect(matchesCandidate({ name: "ROBERTINHO DA PADARIA", number: "1" }, "padaria")).toBe(true);
+  });
+});

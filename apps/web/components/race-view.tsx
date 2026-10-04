@@ -8,6 +8,7 @@ import { MajoritarianTable } from "./majoritarian-table";
 import { ProportionalTable } from "./proportional-table";
 import { EvolutionChart } from "./evolution-chart";
 import { StatusBadge } from "./status-badge";
+import { FeaturedCandidates, usePinned } from "./featured-candidates";
 
 interface Props {
   office: OfficeKey;
@@ -17,9 +18,12 @@ interface Props {
   title: string;
   initial: PublishedRace | null;
   initialHistory: Snapshot[];
+  /** Candidatos fixados pela configuração do servidor (nome ou #número). */
+  featuredQueries?: string[];
 }
 
-export function RaceView({ office, scope, round, raceKey, title, initial, initialHistory }: Props) {
+export function RaceView({ office, scope, round, raceKey, title, initial, initialHistory, featuredQueries = [] }: Props) {
+  const { pinned, toggle } = usePinned(raceKey);
   const [race, setRace] = useState(initial);
   const [history, setHistory] = useState(initialHistory);
   const query = `office=${office}&state=${scope.toUpperCase()}&round=${round}`;
@@ -70,11 +74,18 @@ export function RaceView({ office, scope, round, raceKey, title, initial, initia
               <strong>{formatTimeBrasilia(race.receivedAt)}</strong>.
             </div>
           )}
+          <FeaturedCandidates
+            race={race}
+            history={history}
+            queries={featuredQueries}
+            pinned={pinned}
+            onUnpin={toggle}
+          />
           <Indicators race={race} />
           {def.system === "majoritario" ? (
-            <MajoritarianTable race={race} seats={def.seats ?? 1} />
+            <MajoritarianTable race={race} seats={def.seats ?? 1} pinned={pinned} onTogglePin={toggle} />
           ) : (
-            <ProportionalTable race={race} />
+            <ProportionalTable race={race} pinned={pinned} onTogglePin={toggle} />
           )}
           {history.length > 1 && <EvolutionChart race={race} history={history} />}
           <SourceNote race={race} />

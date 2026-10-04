@@ -3,6 +3,8 @@ import {
   DEFAULT_TSE_ENDPOINT,
   OFFICE_KEYS,
   defaultElectionCodes,
+  parseFeaturedCandidates,
+  type FeaturedCandidate,
   isOfficeKey,
   type ElectionCodes,
   type OfficeKey,
@@ -10,6 +12,9 @@ import {
 } from "@apuracao/core";
 
 export type SourceMode = "tse" | "mock";
+
+/** Destaque padrão deste projeto. Para desativar, defina FEATURED_CANDIDATES= (vazio) no .env. */
+const DEFAULT_FEATURED = "deputado-federal:sp:ROBERTINHO DA PADARIA";
 
 export interface AppConfig {
   source: SourceMode;
@@ -27,6 +32,8 @@ export interface AppConfig {
   archiveRaw: boolean;
   /** Duração total da apuração simulada (modo mock). */
   mockDurationMs: number;
+  /** Candidatos fixados no topo das páginas (FEATURED_CANDIDATES; vazio desativa). */
+  featured: FeaturedCandidate[];
 }
 
 function int(name: string, fallback: number): number {
@@ -63,5 +70,6 @@ export function loadConfig(): AppConfig {
     dataDir: path.resolve(/* turbopackIgnore: true */ process.cwd(), process.env.DATA_DIR ?? "data"),
     archiveRaw: process.env.ARCHIVE_RAW !== "false",
     mockDurationMs: int("MOCK_DURATION_MIN", 30) * 60_000,
+    featured: parseFeaturedCandidates(process.env.FEATURED_CANDIDATES ?? DEFAULT_FEATURED),
   };
 }

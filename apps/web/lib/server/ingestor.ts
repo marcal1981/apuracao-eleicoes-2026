@@ -9,6 +9,7 @@ import {
   OFFICES,
   STATES,
   electionCodeFor,
+  matchesCandidate,
   officesForScope,
   parseSimplifiedResult,
   raceKey,
@@ -238,8 +239,9 @@ export class Ingestor extends EventEmitter {
       sectionsTotalizedPct: result.sectionsTotalizedPct,
       totalVotes: result.totals.valid,
       sourceHash: hash,
+      // Proporcionais: guarda os 50 primeiros e sempre os candidatos em destaque.
       candidates: result.candidates
-        .slice(0, proportional ? 20 : undefined)
+        .filter((c, i) => !proportional || i < 50 || this.featuredQueries(race.office, race.scope).some((q) => matchesCandidate(c, q)))
         .map((c) => ({ id: c.id, votes: c.votes, percentage: c.percentage, position: c.position })),
     };
 
@@ -315,6 +317,11 @@ export class Ingestor extends EventEmitter {
     if (!race.current || race.current.status === "TOTALIZACAO_FINALIZADA") return false;
     if (!race.lastSuccessAt) return true;
     return Date.now() - race.lastSuccessAt > this.config.pollIntervalMs * 3 + 30_000;
+  }
+
+  /** Nomes/números de candidatos fixados em destaque para uma disputa. */
+  featuredQueries(office: OfficeKey, scope: string): string[] {
+    return this.config.featured.filter((f) => f.office === office && f.scope === scope.toLowerCase()).map((f) => f.query);
   }
 
   getRace(key: string): PublishedRace | null {

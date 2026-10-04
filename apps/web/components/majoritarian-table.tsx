@@ -1,9 +1,20 @@
 import { formatInt, formatPct } from "@apuracao/core";
 import type { PublishedRace } from "@/lib/api-types";
 import { CandidateTag, PositionChange } from "./status-badge";
+import { PinButton } from "./pin-button";
 
 /** Ranking de cargos majoritários. A linha divisória marca as vagas em disputa (ex.: 2 no Senado). */
-export function MajoritarianTable({ race, seats }: { race: PublishedRace; seats: number }) {
+export function MajoritarianTable({
+  race,
+  seats,
+  pinned = [],
+  onTogglePin,
+}: {
+  race: PublishedRace;
+  seats: number;
+  pinned?: string[];
+  onTogglePin?: (id: string) => void;
+}) {
   const final = race.status === "TOTALIZACAO_FINALIZADA";
   return (
     <ol className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface">
@@ -20,6 +31,9 @@ export function MajoritarianTable({ race, seats }: { race: PublishedRace; seats:
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="truncate font-semibold">{c.name}</span>
                   <CandidateTag elected={c.elected} secondRound={c.secondRound} officialStatus={c.officialStatus} />
+                  {onTogglePin && (
+                    <PinButton name={c.name} active={pinned.includes(c.id)} onClick={() => onTogglePin(c.id)} />
+                  )}
                   {isLeader && !c.elected && (
                     <span className="rounded border border-border px-1.5 py-0.5 text-[11px] font-semibold uppercase text-muted">
                       Líder

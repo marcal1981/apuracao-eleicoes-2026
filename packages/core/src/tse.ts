@@ -337,3 +337,29 @@ export function normalizePlaceName(name: string): string {
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "");
 }
+
+/** Candidato em destaque: "#1234" busca pelo número; outro texto busca no nome (sem acentos). */
+export function matchesCandidate(c: { name: string; number: string }, query: string): boolean {
+  const q = query.trim();
+  if (!q) return false;
+  if (q.startsWith("#")) return c.number === q.slice(1).trim();
+  // Compara palavras inteiras: "CANDIDATO K" não deve casar com "CANDIDATO K1".
+  const words = (s: string) =>
+    ` ${s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim()} `;
+  return words(c.name).includes(words(q));
+}
+
+export interface FeaturedCandidate {
+  office: OfficeKey;
+  scope: string;
+  query: string;
+}
+
+/** Lê "cargo:uf:nome-ou-#numero;cargo:uf:..." (ex.: "deputado-federal:sp:ROBERTINHO DA PADARIA"). */
+export function parseFeaturedCandidates(spec: string): FeaturedCandidate[] {
+  return spec
+    .split(";")
+    .map((item) => item.split(":").map((p) => p.trim()))
+    .filter((p): p is [string, string, string] => p.length === 3 && p[0]! in OFFICES && !!p[1] && !!p[2])
+    .map(([office, scope, query]) => ({ office: office as OfficeKey, scope: scope.toLowerCase(), query }));
+}
