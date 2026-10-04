@@ -195,7 +195,8 @@ export function parseSimplifiedResult(raw: unknown, ctx: ParseContext): RaceResu
     sectionsTotalizedPct,
     sectionsTotalized: parseTseNumber(pick(s?.st, r.st)),
     sections: parseTseNumber(pick(s?.ts, r.s)),
-    officialTimestamp: parseTseDateTime(r.dg, r.hg),
+    // dt/ht = horário da totalização; dg/hg = geração do arquivo (usado quando não há totalização).
+    officialTimestamp: parseTseDateTime(r.dt, r.ht) ?? parseTseDateTime(r.dg, r.hg),
     totals: {
       electorate,
       turnout,

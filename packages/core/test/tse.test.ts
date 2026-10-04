@@ -256,3 +256,16 @@ describe("simulação", () => {
     expect(final.candidates.filter((c) => c.elected).map((c) => c.position)).toEqual([1, 2]);
   });
 });
+
+describe("horário oficial", () => {
+  it("prefere o horário da totalização (dt/ht) ao da geração do arquivo (dg/hg)", () => {
+    const base = { cand: [], dg: "02/10/2026", hg: "18:34:53" };
+    expect(parseSimplifiedResult(base, { office: "presidente", scope: "br", round: 1 }).officialTimestamp).toBe(
+      "2026-10-02T18:34:53-03:00",
+    );
+    expect(
+      parseSimplifiedResult({ ...base, dt: "04/10/2026", ht: "17:20:05" }, { office: "presidente", scope: "br", round: 1 })
+        .officialTimestamp,
+    ).toBe("2026-10-04T17:20:05-03:00");
+  });
+});
