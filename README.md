@@ -72,7 +72,7 @@ packages/core/     Domínio: cargos, UFs, parser do TSE, ranking, simulação (+
 docs/              Especificação completa e notas de arquitetura
 ```
 
-Veja [docs/arquitetura.md](docs/arquitetura.md) para as decisões do MVP e o caminho até a arquitetura completa descrita em [docs/especificacao.md](docs/especificacao.md).
+Resumo completo do que foi construído: [docs/RESUMO.md](docs/RESUMO.md). Veja também [docs/arquitetura.md](docs/arquitetura.md) para as decisões do MVP e o caminho até a arquitetura completa descrita em [docs/especificacao.md](docs/especificacao.md).
 
 ## Princípios
 
