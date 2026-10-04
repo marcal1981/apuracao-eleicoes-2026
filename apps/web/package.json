@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev:mock": "cross-env TSE_SOURCE=mock next dev"
   },
   "dependencies": {
     "@apuracao/core": "*",
@@ -20,6 +21,7 @@
     "@types/node": "^22.20.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3"
   }

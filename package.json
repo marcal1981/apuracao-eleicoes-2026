@@ -11,7 +11,7 @@
   },
   "scripts": {
     "dev": "npm run dev -w @apuracao/web",
-    "dev:mock": "TSE_SOURCE=mock npm run dev -w @apuracao/web",
+    "dev:mock": "npm run dev:mock -w @apuracao/web",
     "build": "npm run build -w @apuracao/web",
     "start": "npm run start -w @apuracao/web",
     "test": "npm run test -w @apuracao/core",
