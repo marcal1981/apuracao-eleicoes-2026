@@ -6,6 +6,7 @@ import brazilMap from "@svg-maps/brazil";
 import { STATES, formatPct, formatTimeBrasilia } from "@apuracao/core";
 import type { RaceSummary } from "@/lib/api-types";
 import { useLive } from "./use-live";
+import { BINS, binColor, fillFor } from "./map-scale";
 
 interface MapLocation {
   id: string;
@@ -21,21 +22,6 @@ const OFFICE_OPTIONS = [
   { key: "deputado-federal", label: "Dep. Federal" },
   { key: "deputado-estadual", label: "Dep. Estadual" },
 ] as const;
-
-/** Faixas de apuração. "Não iniciada" fica neutra; quanto mais escura, mais seções totalizadas. */
-const BINS = [
-  { min: 100, label: "100%", mix: 100 },
-  { min: 75, label: "75–99%", mix: 78 },
-  { min: 50, label: "50–75%", mix: 58 },
-  { min: 25, label: "25–50%", mix: 40 },
-  { min: 0.0001, label: "até 25%", mix: 24 },
-];
-
-function fillFor(pct: number | undefined): string {
-  if (!pct) return "var(--map-empty)";
-  const bin = BINS.find((b) => pct >= b.min) ?? BINS[BINS.length - 1]!;
-  return `color-mix(in srgb, var(--accent) ${bin.mix}%, var(--surface))`;
-}
 
 const pageFor = (office: string, uf: string) => {
   if (office === "deputado-estadual" && uf === "df") return "/eleicoes/2026/deputado-distrital/df";
@@ -196,7 +182,7 @@ export function TotalizationMap({ initialOffice = "presidente" }: { initialOffic
           <ul className="space-y-1 text-xs" aria-label="Legenda">
             {BINS.map((b) => (
               <li key={b.label} className="flex items-center gap-2">
-                <span className="h-3 w-5 rounded-sm" style={{ background: `color-mix(in srgb, var(--accent) ${b.mix}%, var(--surface))` }} />
+                <span className="h-3 w-5 rounded-sm" style={{ background: binColor(b.mix) }} />
                 {b.label}
               </li>
             ))}

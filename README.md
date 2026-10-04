@@ -59,6 +59,7 @@ Todas as variáveis estão em [`.env.example`](.env.example). As mais importante
 | GET | `/api/v1/results/history?office=…&state=…` | Snapshots da apuração |
 | GET | `/api/v1/races?office=governador` | Resumo de todas as disputas |
 | GET | `/api/v1/offices` | Cargos e UFs |
+| GET | `/api/v1/states/sp/municipalities` | Andamento da totalização por município (mapa municipal) |
 | GET | `/api/v1/live` | SSE com `result_update` e `status` |
 | GET | `/api/v1/health`, `/api/v1/status` | Saúde, ingestão e auditoria |
 

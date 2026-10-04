@@ -282,3 +282,58 @@ export function pickGeneralElection(
   const preferred = candidates.find((e) => /(geral|federal|ordin)/i.test(e.name));
   return preferred ?? candidates[0];
 }
+
+// ---------------------------------------------------------------------------
+// Abrangência municipal
+
+/** Lista de municípios da eleição: {base}/{ciclo}/{eleicao}/config/mun-e{eleicao6}-cm.json */
+export function municipalityConfigUrl(endpoint: TseEndpointConfig, electionCode: string): string {
+  return `${endpoint.baseUrl}/${endpoint.cycle}/${electionCode}/config/mun-e${electionCode.padStart(6, "0")}-cm.json`;
+}
+
+/** Resultado de um município: …/dados/{uf}/{uf}{codigoTSE}-c{cargo}-e{eleicao6}-u.json */
+export function municipalResultUrl(
+  endpoint: TseEndpointConfig,
+  electionCode: string,
+  office: OfficeKey,
+  uf: string,
+  tseCode: string,
+): string {
+  const abr = uf.toLowerCase();
+  const ele = electionCode.padStart(6, "0");
+  return `${endpoint.baseUrl}/${endpoint.cycle}/${electionCode}/${endpoint.dataPath}/${abr}/${abr}${tseCode}-c${OFFICES[office].tseCode}-e${ele}-${endpoint.fileSuffix}.json`;
+}
+
+export interface TseMunicipality {
+  /** Código do município no TSE (5 dígitos). */
+  tseCode: string;
+  /** Código IBGE (7 dígitos), quando informado pelo TSE. */
+  ibge: string | null;
+  name: string;
+  uf: string;
+}
+
+/** Lê a lista de municípios (formato: abr[] → mu[] com cd, cdi, nm). */
+export function parseMunicipalityConfig(raw: unknown, uf?: string): TseMunicipality[] {
+  const r = obj(raw);
+  const out: TseMunicipality[] = [];
+  for (const abr of arr(r?.abr)) {
+    const sigla = str(abr.cd).toUpperCase();
+    if (uf && sigla !== uf.toUpperCase()) continue;
+    for (const mu of arr(abr.mu)) {
+      const tseCode = str(mu.cd);
+      if (!tseCode) continue;
+      out.push({ tseCode, ibge: str(mu.cdi) || null, name: str(mu.nm), uf: sigla });
+    }
+  }
+  return out;
+}
+
+/** Normaliza nomes de municípios para comparação (sem acentos, apóstrofos ou espaços). */
+export function normalizePlaceName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}

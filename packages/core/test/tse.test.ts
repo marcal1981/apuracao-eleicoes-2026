@@ -269,3 +269,29 @@ describe("horário oficial", () => {
     ).toBe("2026-10-04T17:20:05-03:00");
   });
 });
+
+describe("municípios", () => {
+  it("monta URLs municipais e lê a lista de municípios", async () => {
+    const { municipalResultUrl, municipalityConfigUrl, parseMunicipalityConfig, normalizePlaceName } = await import("../src");
+    expect(municipalityConfigUrl(DEFAULT_TSE_ENDPOINT, "6259")).toBe(
+      "https://resultados.tse.jus.br/oficial/ele2026/6259/config/mun-e006259-cm.json",
+    );
+    expect(municipalResultUrl(DEFAULT_TSE_ENDPOINT, "6259", "governador", "SP", "71072")).toBe(
+      "https://resultados.tse.jus.br/oficial/ele2026/6259/dados/sp/sp71072-c0003-e006259-u.json",
+    );
+    const list = parseMunicipalityConfig(
+      {
+        abr: [
+          { cd: "SP", mu: [{ cd: "71072", cdi: "3550308", nm: "SÃO PAULO" }, { cd: "62910", nm: "SANTA BÁRBARA D'OESTE" }] },
+          { cd: "RJ", mu: [{ cd: "60011", cdi: "3304557", nm: "RIO DE JANEIRO" }] },
+        ],
+      },
+      "sp",
+    );
+    expect(list).toEqual([
+      { tseCode: "71072", ibge: "3550308", name: "SÃO PAULO", uf: "SP" },
+      { tseCode: "62910", ibge: null, name: "SANTA BÁRBARA D'OESTE", uf: "SP" },
+    ]);
+    expect(normalizePlaceName("Santa Bárbara d'Oeste")).toBe(normalizePlaceName("SANTA BÁRBARA D'OESTE"));
+  });
+});

@@ -20,6 +20,7 @@ import {
 import type { AuditEvent, IngestionStatus, LiveEvent, PublishedRace, RaceSummary } from "../api-types";
 import { Archive } from "./archive";
 import { loadConfig, type AppConfig } from "./config";
+import { MUNICIPAL_UFS, MunicipalTracker } from "./municipal";
 
 const HISTORY_LIMIT = 2_000;
 const AUDIT_LIMIT = 500;
@@ -40,7 +41,7 @@ interface RaceState {
   lastError?: string;
 }
 
-type FetchOutcome =
+export type FetchOutcome =
   | { kind: "new"; body: string; etag?: string; lastModified?: string; url: string }
   | { kind: "unchanged" }
   | { kind: "not_published"; status: number };
@@ -265,7 +266,7 @@ export class Ingestor extends EventEmitter {
     });
   }
 
-  private async httpGet(url: string, cache?: { etag?: string; lastModified?: string }): Promise<FetchOutcome> {
+  async httpGet(url: string, cache?: { etag?: string; lastModified?: string }): Promise<FetchOutcome> {
     const delays = [1_000, 2_000, 4_000];
     for (let attempt = 0; ; attempt++) {
       try {
@@ -389,7 +390,7 @@ export class Ingestor extends EventEmitter {
     this.emit("live", event);
   }
 
-  private log(level: AuditEvent["level"], message: string, key?: string, hash?: string) {
+  log(level: AuditEvent["level"], message: string, key?: string, hash?: string) {
     const event: AuditEvent = { at: new Date().toISOString(), level, message, key, hash };
     this.audit.push(event);
     if (this.audit.length > AUDIT_LIMIT) this.audit.shift();
@@ -402,17 +403,27 @@ export class Ingestor extends EventEmitter {
 }
 
 const GLOBAL_KEY = Symbol.for("apuracao.ingestor");
+const MUNICIPAL_KEY = Symbol.for("apuracao.municipal");
 
 /** Instância única por processo; inicia a ingestão na primeira chamada (exceto durante o build). */
 export function getIngestor(): Ingestor {
-  const g = globalThis as unknown as Record<symbol, Ingestor | undefined>;
-  let instance = g[GLOBAL_KEY];
+  const g = globalThis as unknown as Record<symbol, unknown>;
+  let instance = g[GLOBAL_KEY] as Ingestor | undefined;
   if (!instance) {
     instance = new Ingestor();
     g[GLOBAL_KEY] = instance;
+    const trackers = new Map(MUNICIPAL_UFS.map((uf) => [uf, new MunicipalTracker(instance!, uf)]));
+    g[MUNICIPAL_KEY] = trackers;
     if (process.env.NEXT_PHASE !== "phase-production-build" && process.env.INGESTION_DISABLED !== "true") {
       instance.start();
+      for (const t of trackers.values()) t.start();
     }
   }
   return instance;
+}
+
+export function getMunicipalTracker(uf: string): MunicipalTracker | undefined {
+  getIngestor();
+  const trackers = (globalThis as unknown as Record<symbol, Map<string, MunicipalTracker> | undefined>)[MUNICIPAL_KEY];
+  return trackers?.get(uf.toLowerCase());
 }

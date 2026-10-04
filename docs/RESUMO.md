@@ -50,6 +50,13 @@ Plataforma independente para acompanhar a apuração das Eleições 2026 a parti
 - O gráfico usa uma paleta neutra, sem cores de partidos.
 - **Contingência:** se o TSE ficar instável, a página mantém o último dado oficial e avisa: *"Dados temporariamente sem atualização. Última atualização oficial recebida às HH:MM:SS"*.
 
+### Mapas da apuração
+- **Mapa do Brasil** (página inicial, Presidente e escolha de estado): cada UF é pintada pelo percentual de seções totalizadas do cargo escolhido. Clicar num estado abre os resultados dele.
+- **Mapa municipal de SP** (páginas de Governador, Senador, Dep. Federal e Dep. Estadual de SP): os 645 municípios coloridos pelo andamento da totalização, com busca por município, zoom e contagem de concluídos, em apuração e aguardando.
+  - A urna é totalizada com todos os cargos de uma vez, então o sistema lê o arquivo municipal de Governador (o menor) e o mesmo andamento vale para Senador e Deputados.
+  - Lista de municípios do TSE: `…/6259/config/mun-e006259-cm.json`. Arquivo de cada cidade: `…/dados/sp/sp{codigo}-c0003-e006259-u.json`. Atualização a cada 60 s (`MUNICIPAL_POLL_MS`).
+  - Desenho das cidades: malha do IBGE (CC0), gerada com `node scripts/build-municipal-map.mjs sp`. Para outra UF, gere o arquivo e inclua a sigla em `MUNICIPAL_UFS` (ex.: `sp,rj`).
+
 ### API própria (`/api/v1`)
 | Rota | Descrição |
 |---|---|
@@ -58,6 +65,7 @@ Plataforma independente para acompanhar a apuração das Eleições 2026 a parti
 | `GET /races?office=governador` | Resumo de todas as disputas |
 | `GET /offices` | Cargos e UFs |
 | `GET /live` | Eventos em tempo real (SSE) |
+| `GET /states/sp/municipalities` | Andamento da totalização por município |
 | `GET /health` e `GET /status` | Saúde do sistema, ingestão e auditoria |
 
 As respostas têm cache curto para CDN (`s-maxage`), o que protege o servidor nos picos de acesso.

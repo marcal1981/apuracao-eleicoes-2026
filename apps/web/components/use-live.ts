@@ -22,6 +22,7 @@ export function useLive(onEvent: (event: LiveEvent) => void): LiveConnection {
     source.onerror = () => setState(source.readyState === EventSource.CLOSED ? "closed" : "connecting");
     source.addEventListener("result_update", dispatch);
     source.addEventListener("status", dispatch);
+    source.addEventListener("municipal_update", dispatch);
     return () => source.close();
   }, []);
 

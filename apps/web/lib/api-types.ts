@@ -21,7 +21,7 @@ export interface RaceHistory {
 }
 
 export interface LiveEvent {
-  type: "result_update" | "status";
+  type: "result_update" | "status" | "municipal_update";
   key?: string;
   office?: string;
   state?: string;

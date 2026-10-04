@@ -5,6 +5,8 @@ import { RacePage } from "@/lib/server/race-page";
 import { getIngestor } from "@/lib/server/ingestor";
 import { StateGrid } from "@/components/state-grid";
 import { TotalizationMap } from "@/components/totalization-map";
+import { MunicipalMap } from "@/components/municipal-map";
+import { MUNICIPAL_UFS } from "@/lib/server/municipal";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +58,9 @@ export default async function CargoPage({ params }: { params: Promise<Params> })
   return (
     <div className="space-y-6">
       <RacePage office={cargo} scope={state.uf} />
+      {cargo !== "presidente" && MUNICIPAL_UFS.includes(state.uf.toLowerCase()) && (
+        <MunicipalMap uf={state.uf.toLowerCase()} />
+      )}
       {cargo === "presidente" && (
         <p className="text-sm text-muted">Votação para Presidente apurada em {state.name}.</p>
       )}
