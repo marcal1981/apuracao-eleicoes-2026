@@ -1,10 +1,10 @@
-// Leitura dos arquivos de divulgação de resultados do TSE ("dados simplificados").
+// Leitura dos arquivos de divulgação de resultados do TSE.
 //
-// Layout de URL utilizado pelo TSE desde 2022:
-//   {base}/{ciclo}/{eleicao}/dados-simplificados/{abr}/{abr}-c{cargo}-e{eleicao6}-r.json
-// e a configuração de eleições em {base}/comum/config/ele-c.json.
-// Todos os componentes são configuráveis para acompanhar ajustes publicados na
-// documentação técnica oficial de 2026.
+// Layout de URL de 2026:
+//   {base}/{ciclo}/{eleicao}/dados/{abr}/{abr}-c{cargo}-e{eleicao6}-u.json
+// (em 2022 era dados-simplificados/…-r.json; ambos os formatos de arquivo são aceitos).
+// Em 2026 há duas eleições: federal (Presidente) e estadual (Governador, Senador, Deputados).
+// A configuração de eleições fica em {base}/comum/config/ele-c.json.
 
 import { OFFICES, type OfficeKey } from "./domain";
 import type { CandidateResult, RaceResult, RaceStatus } from "./types";
@@ -12,14 +12,36 @@ import type { CandidateResult, RaceResult, RaceStatus } from "./types";
 export interface TseEndpointConfig {
   baseUrl: string;
   cycle: string;
+  /** Pasta dos arquivos de resultado ("dados" em 2026; "dados-simplificados" em 2022). */
+  dataPath: string;
+  /** Sufixo do arquivo ("u" em 2026; "r" em 2022). */
+  fileSuffix: string;
 }
 
 export const DEFAULT_TSE_ENDPOINT: TseEndpointConfig = {
   baseUrl: "https://resultados.tse.jus.br/oficial",
   cycle: "ele2026",
+  dataPath: "dados",
+  fileSuffix: "u",
 };
 
-export function simplifiedResultUrl(
+export interface ElectionCodes {
+  /** Eleição federal: Presidente. */
+  federal: string;
+  /** Eleição estadual: Governador, Senador, Deputados. */
+  state: string;
+}
+
+/** Códigos das Eleições Gerais 2026 no TSE (1º turno 6257/6259; 2º turno 6258/6260). */
+export function defaultElectionCodes(round: number): ElectionCodes {
+  return round === 2 ? { federal: "6258", state: "6260" } : { federal: "6257", state: "6259" };
+}
+
+export function electionCodeFor(codes: ElectionCodes, office: OfficeKey): string {
+  return office === "presidente" ? codes.federal : codes.state;
+}
+
+export function resultFileUrl(
   endpoint: TseEndpointConfig,
   electionCode: string,
   office: OfficeKey,
@@ -28,7 +50,7 @@ export function simplifiedResultUrl(
   const abr = scope.toLowerCase();
   const cargo = OFFICES[office].tseCode;
   const ele = electionCode.padStart(6, "0");
-  return `${endpoint.baseUrl}/${endpoint.cycle}/${electionCode}/dados-simplificados/${abr}/${abr}-c${cargo}-e${ele}-r.json`;
+  return `${endpoint.baseUrl}/${endpoint.cycle}/${electionCode}/${endpoint.dataPath}/${abr}/${abr}-c${cargo}-e${ele}-${endpoint.fileSuffix}.json`;
 }
 
 export function electionConfigUrl(endpoint: TseEndpointConfig): string {
@@ -63,22 +85,14 @@ export function parseTseDateTime(date: unknown, time: unknown): string | null {
 }
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : v == null ? "" : String(v));
+const obj = (v: unknown): Record<string, unknown> | undefined =>
+  v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : undefined;
+const arr = (v: unknown): Record<string, unknown>[] => (Array.isArray(v) ? (v as Record<string, unknown>[]) : []);
+/** Primeiro valor escalar presente (os formatos de 2022 e 2026 guardam os totais em lugares diferentes). */
+const pick = (...values: unknown[]): unknown =>
+  values.find((v) => v !== undefined && v !== null && v !== "" && typeof v !== "object");
 
 export class TseParseError extends Error {}
-
-interface RawCandidate {
-  seq?: unknown;
-  sqcand?: unknown;
-  n?: unknown;
-  nm?: unknown;
-  cc?: unknown;
-  nv?: unknown;
-  e?: unknown;
-  st?: unknown;
-  dvt?: unknown;
-  vap?: unknown;
-  pvap?: unknown;
-}
 
 export interface ParseContext {
   office: OfficeKey;
@@ -88,18 +102,68 @@ export interface ParseContext {
   previousPositions?: Map<string, number>;
 }
 
+function readCandidate(c: Record<string, unknown>, party: string, coalition: string | null): Unranked {
+  const officialStatus = str(c.st);
+  const statusLower = officialStatus.toLowerCase();
+  const vices = arr(c.vs)
+    .map((v) => str(v.nmu) || str(v.nm))
+    .filter(Boolean);
+  return {
+    id: str(c.sqcand) || str(c.n),
+    seq: parseTseNumber(c.seq),
+    number: str(c.n),
+    name: str(c.nmu) || str(c.nm),
+    running: vices.length > 0 ? vices.join(" · ") : str(c.nv) || null,
+    party,
+    coalition,
+    votes: parseTseNumber(c.vap),
+    percentage: parseTseNumber(c.pvap),
+    officialStatus,
+    elected: str(c.e).toLowerCase() === "s" || (statusLower.startsWith("eleito") && !statusLower.includes("não")),
+    secondRound: statusLower.includes("2º turno") || statusLower.includes("2° turno"),
+    voteDestination: str(c.dvt),
+  };
+}
+
+/** Lista de candidatos: formato 2026 (carg → agr → par → cand) ou 2022 (cand). */
+function readCandidates(r: Record<string, unknown>): Unranked[] {
+  if (Array.isArray(r.carg)) {
+    const out: Unranked[] = [];
+    for (const cargo of arr(r.carg)) {
+      for (const agr of arr(cargo.agr)) {
+        const agrName = str(agr.nm);
+        const parties = arr(agr.par);
+        for (const par of parties) {
+          const sg = str(par.sg) || str(par.nm);
+          const coalition = agrName && agrName !== sg ? agrName : null;
+          for (const c of arr(par.cand)) out.push(readCandidate(c, sg, coalition));
+        }
+      }
+    }
+    return out;
+  }
+  if (Array.isArray(r.cand)) return arr(r.cand).map((c) => readCandidate(c, str(c.cc), null));
+  throw new TseParseError("Arquivo sem lista de candidatos (carg/cand)");
+}
+
+const pctOf = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 10_000) / 100 : 0);
+
 /**
- * Normaliza um arquivo de "dados simplificados" do TSE.
+ * Normaliza um arquivo de resultados do TSE (formatos 2026 e 2022).
  * Não decide quem foi eleito: usa apenas a situação oficial informada no arquivo.
  */
 export function parseSimplifiedResult(raw: unknown, ctx: ParseContext): RaceResult {
-  if (!raw || typeof raw !== "object") throw new TseParseError("Arquivo vazio ou inválido");
-  const r = raw as Record<string, unknown>;
-  if (!Array.isArray(r.cand)) throw new TseParseError("Arquivo sem lista de candidatos (cand)");
+  const r = obj(raw);
+  if (!r) throw new TseParseError("Arquivo vazio ou inválido");
+  const s = obj(r.s);
+  const e = obj(r.e);
+  const v = obj(r.v);
+  const c = obj(r.c);
+  const a = obj(r.a);
 
-  const sectionsTotalizedPct = parseTseNumber(r.pst);
+  const sectionsTotalizedPct = parseTseNumber(pick(s?.pst, r.pst));
   if (sectionsTotalizedPct < 0 || sectionsTotalizedPct > 100) {
-    throw new TseParseError(`Percentual de seções totalizadas fora do intervalo: ${str(r.pst)}`);
+    throw new TseParseError(`Percentual de seções totalizadas fora do intervalo: ${str(pick(s?.pst, r.pst))}`);
   }
 
   const finished = str(r.tf).toLowerCase() === "s";
@@ -109,31 +173,18 @@ export function parseSimplifiedResult(raw: unknown, ctx: ParseContext): RaceResu
       ? "APURACAO_EM_ANDAMENTO"
       : "AGUARDANDO";
 
-  const candidates = rankCandidates(
-    (r.cand as RawCandidate[]).map((c) => {
-      const officialStatus = str(c.st);
-      const statusLower = officialStatus.toLowerCase();
-      return {
-        id: str(c.sqcand) || str(c.n),
-        seq: parseTseNumber(c.seq),
-        number: str(c.n),
-        name: str(c.nm),
-        running: str(c.nv) || null,
-        party: str(c.cc),
-        votes: parseTseNumber(c.vap),
-        percentage: parseTseNumber(c.pvap),
-        officialStatus,
-        elected: str(c.e).toLowerCase() === "s" || (statusLower.startsWith("eleito") && !statusLower.includes("não")),
-        secondRound: statusLower.includes("2º turno") || statusLower.includes("2° turno"),
-        voteDestination: str(c.dvt),
-      };
-    }),
-    ctx.previousPositions,
-  );
-
-  for (const c of candidates) {
-    if (c.votes < 0) throw new TseParseError(`Votação negativa para ${c.name}`);
+  const candidates = rankCandidates(readCandidates(r), ctx.previousPositions);
+  for (const cand of candidates) {
+    if (cand.votes < 0) throw new TseParseError(`Votação negativa para ${cand.name}`);
   }
+
+  const valid = parseTseNumber(pick(v?.vv, r.vv));
+  const blank = parseTseNumber(pick(v?.vb, r.vb));
+  const nulls = parseTseNumber(pick(v?.tvn, v?.vn, r.tvn));
+  const electorate = parseTseNumber(pick(e?.te, r.e));
+  // Quando o arquivo não traz comparecimento/abstenção, deriva-se dos votos totalizados.
+  const turnout = parseTseNumber(pick(c?.c, c?.tc, e?.c, r.c)) || parseTseNumber(pick(v?.tv, r.tv)) || valid + blank + nulls;
+  const abstention = parseTseNumber(pick(a?.a, c?.a, e?.a, r.a)) || Math.max(0, parseTseNumber(pick(e?.est, electorate)) - turnout);
 
   return {
     electionCode: str(r.ele),
@@ -142,21 +193,21 @@ export function parseSimplifiedResult(raw: unknown, ctx: ParseContext): RaceResu
     scope: ctx.scope.toLowerCase(),
     status,
     sectionsTotalizedPct,
-    sectionsTotalized: parseTseNumber(r.st),
-    sections: parseTseNumber(r.s),
+    sectionsTotalized: parseTseNumber(pick(s?.st, r.st)),
+    sections: parseTseNumber(pick(s?.ts, r.s)),
     officialTimestamp: parseTseDateTime(r.dg, r.hg),
     totals: {
-      electorate: parseTseNumber(r.e),
-      turnout: parseTseNumber(r.c),
-      turnoutPct: parseTseNumber(r.pc),
-      abstention: parseTseNumber(r.a),
-      abstentionPct: parseTseNumber(r.pa),
-      valid: parseTseNumber(r.vv),
-      validPct: parseTseNumber(r.pvv),
-      blank: parseTseNumber(r.vb),
-      blankPct: parseTseNumber(r.pvb),
-      null: parseTseNumber(r.tvn),
-      nullPct: parseTseNumber(r.ptvn),
+      electorate,
+      turnout,
+      turnoutPct: parseTseNumber(pick(c?.pc, e?.pc, r.pc)) || pctOf(turnout, turnout + abstention),
+      abstention,
+      abstentionPct: parseTseNumber(pick(a?.pa, c?.pa, e?.pa, r.pa)) || pctOf(abstention, turnout + abstention),
+      valid,
+      validPct: parseTseNumber(pick(v?.pvv, r.pvv)) || pctOf(valid, turnout),
+      blank,
+      blankPct: parseTseNumber(pick(v?.pvb, r.pvb)) || pctOf(blank, turnout),
+      null: nulls,
+      nullPct: parseTseNumber(pick(v?.ptvn, v?.pvn, r.ptvn)) || pctOf(nulls, turnout),
     },
     candidates,
   };

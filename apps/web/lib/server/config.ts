@@ -1,5 +1,13 @@
 import path from "node:path";
-import { DEFAULT_TSE_ENDPOINT, OFFICE_KEYS, isOfficeKey, type OfficeKey, type TseEndpointConfig } from "@apuracao/core";
+import {
+  DEFAULT_TSE_ENDPOINT,
+  OFFICE_KEYS,
+  defaultElectionCodes,
+  isOfficeKey,
+  type ElectionCodes,
+  type OfficeKey,
+  type TseEndpointConfig,
+} from "@apuracao/core";
 
 export type SourceMode = "tse" | "mock";
 
@@ -9,8 +17,8 @@ export interface AppConfig {
   year: number;
   /** Turno acompanhado pela ingestão (1 ou 2). */
   round: number;
-  /** Código da eleição no TSE; vazio = descobrir pelo arquivo de configuração oficial. */
-  electionCode: string;
+  /** Códigos das eleições federal (Presidente) e estadual (demais cargos) no TSE. */
+  electionCodes: ElectionCodes;
   pollIntervalMs: number;
   concurrency: number;
   requestTimeoutMs: number;
@@ -37,12 +45,17 @@ export function loadConfig(): AppConfig {
   return {
     source,
     endpoint: {
-      baseUrl: (process.env.TSE_BASE_URL ?? DEFAULT_TSE_ENDPOINT.baseUrl).replace(/\/$/, ""),
-      cycle: process.env.TSE_CYCLE ?? DEFAULT_TSE_ENDPOINT.cycle,
+      baseUrl: (process.env.TSE_BASE_URL || DEFAULT_TSE_ENDPOINT.baseUrl).replace(/\/$/, ""),
+      cycle: process.env.TSE_CYCLE || DEFAULT_TSE_ENDPOINT.cycle,
+      dataPath: process.env.TSE_DATA_PATH || DEFAULT_TSE_ENDPOINT.dataPath,
+      fileSuffix: process.env.TSE_FILE_SUFFIX || DEFAULT_TSE_ENDPOINT.fileSuffix,
     },
     year: int("ELECTION_YEAR", 2026),
     round,
-    electionCode: (round === 2 ? process.env.TSE_ELECTION_CODE_R2 : process.env.TSE_ELECTION_CODE) ?? (source === "mock" ? "9999" : ""),
+    electionCodes: {
+      federal: (round === 2 ? process.env.TSE_ELECTION_FEDERAL_R2 : process.env.TSE_ELECTION_FEDERAL) || defaultElectionCodes(round).federal,
+      state: (round === 2 ? process.env.TSE_ELECTION_STATE_R2 : process.env.TSE_ELECTION_STATE) || defaultElectionCodes(round).state,
+    },
     pollIntervalMs: int("POLL_INTERVAL_MS", source === "mock" ? 10_000 : 30_000),
     concurrency: int("POLL_CONCURRENCY", 4),
     requestTimeoutMs: int("TSE_TIMEOUT_MS", 10_000),

@@ -45,11 +45,11 @@ Todas as variáveis estão em [`.env.example`](.env.example). As mais importante
 |---|---|---|
 | `TSE_SOURCE` | `tse` | `mock` para simulação |
 | `TSE_BASE_URL` / `TSE_CYCLE` | `https://resultados.tse.jus.br/oficial` / `ele2026` | Conferir na documentação técnica oficial de 2026 |
-| `TSE_ELECTION_CODE` | (descoberto) | Se vazio, é lido de `comum/config/ele-c.json`. Informe o código manualmente se a descoberta falhar |
-| `TSE_ROUND` | `1` | Use `2` no segundo turno, junto com `TSE_ELECTION_CODE_R2` |
+| `TSE_ELECTION_FEDERAL` / `TSE_ELECTION_STATE` | `6257` / `6259` | Presidente / demais cargos (2º turno: `6258` / `6260`) |
+| `TSE_ROUND` | `1` | Use `2` no segundo turno |
 | `POLL_INTERVAL_MS` | `30000` | Respeite os limites de consumo do TSE |
 
-> ⚠️ **Antes de usar com dados reais:** o formato de URL e os campos seguem o padrão de "dados simplificados" usado pelo TSE desde 2022. Valide contra a [documentação técnica de 2026](https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados) e acompanhe a página `/status` após subir o sistema.
+> ⚠️ **Antes de usar com dados reais:** o leitor aceita o formato de 2026 (`/dados/…-u.json`, candidatos em `carg → agr → par → cand`) e o de 2022. Valide contra a [documentação técnica de 2026](https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados) e acompanhe a página `/status` após subir o sistema.
 
 ## API
 

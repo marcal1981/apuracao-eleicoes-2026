@@ -6,7 +6,9 @@ import {
   parseTseDateTime,
   parseTseNumber,
   pickGeneralElection,
-  simplifiedResultUrl,
+  resultFileUrl,
+  defaultElectionCodes,
+  electionCodeFor,
   simulateSimplifiedResult,
   DEFAULT_TSE_ENDPOINT,
   TseParseError,
@@ -59,11 +61,77 @@ describe("parseTseDateTime", () => {
   });
 });
 
-describe("simplifiedResultUrl", () => {
-  it("monta a URL no padrão do TSE", () => {
-    expect(simplifiedResultUrl(DEFAULT_TSE_ENDPOINT, "619", "governador", "SP")).toBe(
-      "https://resultados.tse.jus.br/oficial/ele2026/619/dados-simplificados/sp/sp-c0003-e000619-r.json",
+describe("resultFileUrl", () => {
+  it("monta a URL no padrão de 2026, com eleição federal e estadual", () => {
+    const codes = defaultElectionCodes(1);
+    expect(resultFileUrl(DEFAULT_TSE_ENDPOINT, electionCodeFor(codes, "governador"), "governador", "SP")).toBe(
+      "https://resultados.tse.jus.br/oficial/ele2026/6259/dados/sp/sp-c0003-e006259-u.json",
     );
+    expect(resultFileUrl(DEFAULT_TSE_ENDPOINT, electionCodeFor(codes, "presidente"), "presidente", "BR")).toBe(
+      "https://resultados.tse.jus.br/oficial/ele2026/6257/dados/br/br-c0001-e006257-u.json",
+    );
+    expect(defaultElectionCodes(2)).toEqual({ federal: "6258", state: "6260" });
+  });
+
+  it("aceita o layout de 2022 por configuração", () => {
+    const endpoint = { ...DEFAULT_TSE_ENDPOINT, cycle: "ele2022", dataPath: "dados-simplificados", fileSuffix: "r" };
+    expect(resultFileUrl(endpoint, "544", "presidente", "br")).toBe(
+      "https://resultados.tse.jus.br/oficial/ele2022/544/dados-simplificados/br/br-c0001-e000544-r.json",
+    );
+  });
+});
+
+describe("formato 2026 (carg → agr → par → cand)", () => {
+  const file2026 = {
+    ele: "6259",
+    t: "1",
+    tf: "n",
+    dg: "04/10/2026",
+    hg: "19:12:45",
+    s: { ts: "100.000", st: "45.000", pst: "45,00" },
+    e: { te: "34.000.000", est: "15.300.000" },
+    v: { tv: "12.000.000", vv: "11.000.000", pvv: "91,67", vb: "400.000", pvb: "3,33", tvn: "600.000", ptvn: "5,00" },
+    carg: [
+      {
+        cd: "5",
+        agr: [
+          {
+            n: "1",
+            nm: "Federação Exemplo",
+            par: [
+              {
+                sg: "PX",
+                cand: [
+                  { seq: "1", sqcand: "1001", n: "101", nm: "NOME COMPLETO UM", nmu: "UM", e: "n", st: "", dvt: "Válido", vap: "3.000.000", pvap: "27,27", vs: [{ nm: "SUPLENTE A" }] },
+                ],
+              },
+            ],
+          },
+          {
+            n: "2",
+            nm: "PY",
+            par: [{ sg: "PY", cand: [{ seq: "2", sqcand: "1002", n: "202", nm: "NOME DOIS", nmu: "DOIS", e: "n", st: "", dvt: "Válido", vap: "4.500.000", pvap: "40,91" }] }],
+          },
+        ],
+      },
+    ],
+  };
+
+  it("achata coligações/partidos e lê os totais aninhados", () => {
+    const r = parseSimplifiedResult(file2026, { office: "senador", scope: "SP", round: 1 });
+    expect(r.sectionsTotalizedPct).toBe(45);
+    expect(r.sections).toBe(100000);
+    expect(r.sectionsTotalized).toBe(45000);
+    expect(r.totals.electorate).toBe(34000000);
+    expect(r.totals.valid).toBe(11000000);
+    expect(r.totals.turnout).toBe(12000000);
+    expect(r.totals.abstention).toBe(3300000);
+    expect(r.candidates.map((c) => [c.name, c.party, c.coalition])).toEqual([
+      ["DOIS", "PY", null],
+      ["UM", "PX", "Federação Exemplo"],
+    ]);
+    expect(r.candidates[1]!.running).toBe("SUPLENTE A");
+    expect(r.candidates[1]!.gapToPrevious).toBe(1500000);
   });
 });
 

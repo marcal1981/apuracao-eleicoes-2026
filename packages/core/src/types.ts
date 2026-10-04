@@ -17,8 +17,10 @@ export interface CandidateResult {
   name: string;
   /** Vice ou suplentes, conforme o arquivo oficial. */
   running: string | null;
-  /** Partido / federação / coligação, como informado pelo TSE. */
+  /** Partido (sigla) ou, no formato de 2022, a composição informada pelo TSE. */
   party: string;
+  /** Federação/coligação a que o partido pertence, quando houver. */
+  coalition: string | null;
   votes: number;
   /** Percentual sobre os votos válidos, como informado pelo TSE. */
   percentage: number;

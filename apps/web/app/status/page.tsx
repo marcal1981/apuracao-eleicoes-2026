@@ -27,10 +27,10 @@ export default function StatusPage() {
   if (!data) return <p className="text-muted">Carregando…</p>;
 
   const rows: [string, string][] = [
-    ["Situação", data.status === "operational" ? "Operacional" : data.status === "waiting" ? "Aguardando configuração da eleição" : "Instável"],
+    ["Situação", data.status === "operational" ? "Operacional" : "Instável"],
     ["Fonte", data.source === "mock" ? "Simulação" : "TSE"],
     ["TSE", data.tse === "online" ? "Respondendo" : data.tse === "offline" ? "Sem resposta" : "Verificando"],
-    ["Código da eleição", data.electionCode ?? "—"],
+    ["Códigos das eleições", data.electionCode],
     ["Turno", `${data.round}º`],
     ["Intervalo de consulta", `${data.pollIntervalMs / 1000}s`],
     ["Disputas acompanhadas", `${data.racesWithData} com dados de ${data.racesTracked} (${data.racesFinished} finalizadas)`],
@@ -39,6 +39,7 @@ export default function StatusPage() {
     ["Última publicação", formatTimeBrasilia(data.lastPublishedAt)],
     ["Último ciclo de consulta", formatTimeBrasilia(data.lastCycleFinishedAt)],
     ["Erros no último ciclo", String(data.errorsLastCycle)],
+    ["Arquivos ainda não publicados pelo TSE", String(data.notPublishedLastCycle)],
   ];
 
   return (

@@ -153,8 +153,8 @@ Copie `.env.example` para `.env` e ajuste. As principais variáveis:
 | `TSE_SOURCE` | `tse` | `mock` liga a simulação |
 | `TSE_BASE_URL` | `https://resultados.tse.jus.br/oficial` | Endereço dos arquivos do TSE |
 | `TSE_CYCLE` | `ele2026` | Ciclo eleitoral |
-| `TSE_ELECTION_CODE` | (automático) | Código da eleição no 1º turno |
-| `TSE_ELECTION_CODE_R2` | (automático) | Código da eleição no 2º turno |
+| `TSE_ELECTION_FEDERAL` | `6257` (2º turno: `6258`) | Eleição federal: Presidente |
+| `TSE_ELECTION_STATE` | `6259` (2º turno: `6260`) | Eleição estadual: Governador, Senador, Deputados |
 | `TSE_ROUND` | `1` | Turno acompanhado (`2` no segundo turno) |
 | `POLL_INTERVAL_MS` | `30000` | Intervalo entre consultas ao TSE |
 | `TRACK_OFFICES` | todos | Limitar cargos (ex.: `presidente,governador`) |
@@ -179,8 +179,8 @@ Para colocar no ar rapidamente, o MVP simplificou a infraestrutura **sem abrir m
 
 ## 7. Pendências importantes
 
-1. **Validar com os arquivos reais do TSE de 2026.** O formato implementado segue o padrão "dados simplificados" usado desde 2022, mas o acesso ao site do TSE estava bloqueado no ambiente de desenvolvimento. Confira na [documentação técnica oficial](https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados) e acompanhe a página `/status` ao subir com `TSE_SOURCE=tse`.
-2. Se a descoberta automática falhar, informe `TSE_ELECTION_CODE` no `.env`.
+1. **Validar com os arquivos reais do TSE de 2026.** O leitor segue o formato de 2026 (eleições 6257 federal e 6259 estadual, arquivos `/dados/…-u.json`), levantado a partir de projetos públicos que já consomem esses dados, mas o acesso ao site do TSE estava bloqueado no ambiente de desenvolvimento. Confira na [documentação técnica oficial](https://www.tse.jus.br/eleicoes/informacoes-tecnicas-sobre-a-divulgacao-de-resultados) e acompanhe a página `/status` ao subir com `TSE_SOURCE=tse`.
+2. Se os arquivos não forem encontrados (veja "Arquivos ainda não publicados" em `/status`), ajuste os códigos/caminho no `.env`.
 
 ---
 

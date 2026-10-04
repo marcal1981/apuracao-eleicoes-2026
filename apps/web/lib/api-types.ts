@@ -39,10 +39,10 @@ export interface AuditEvent {
 }
 
 export interface IngestionStatus {
-  status: "operational" | "degraded" | "waiting";
+  status: "operational" | "degraded";
   source: "tse" | "mock";
   tse: "online" | "offline" | "unknown";
-  electionCode: string | null;
+  electionCode: string;
   round: number;
   pollIntervalMs: number;
   startedAt: string;
@@ -57,6 +57,8 @@ export interface IngestionStatus {
   racesWithData: number;
   racesFinished: number;
   errorsLastCycle: number;
+  /** Arquivos que o TSE ainda não publicou (HTTP 404/403) no último ciclo. */
+  notPublishedLastCycle: number;
 }
 
 export interface RaceSummary {

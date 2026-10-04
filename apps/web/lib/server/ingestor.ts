@@ -8,13 +8,11 @@ import { EventEmitter } from "node:events";
 import {
   OFFICES,
   STATES,
-  electionConfigUrl,
+  electionCodeFor,
   officesForScope,
-  parseElectionConfig,
   parseSimplifiedResult,
-  pickGeneralElection,
   raceKey,
-  simplifiedResultUrl,
+  resultFileUrl,
   simulateSimplifiedResult,
   type OfficeKey,
   type Snapshot,
@@ -25,7 +23,9 @@ import { loadConfig, type AppConfig } from "./config";
 
 const HISTORY_LIMIT = 2_000;
 const AUDIT_LIMIT = 500;
-const USER_AGENT = "apuracao-eleicoes-2026 (+https://github.com/marcal1981/apuracao-eleicoes-2026)";
+// O TSE recusa clientes sem User-Agent de navegador.
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 apuracao-eleicoes-2026";
 
 interface RaceState {
   key: string;
@@ -43,7 +43,7 @@ interface RaceState {
 type FetchOutcome =
   | { kind: "new"; body: string; etag?: string; lastModified?: string; url: string }
   | { kind: "unchanged" }
-  | { kind: "not_published" };
+  | { kind: "not_published"; status: number };
 
 class HttpError extends Error {
   constructor(
@@ -61,7 +61,6 @@ export class Ingestor extends EventEmitter {
   private readonly archive: Archive;
   private readonly races = new Map<string, RaceState>();
   private readonly audit: AuditEvent[] = [];
-  private electionCode: string | null;
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   private readonly startedAt = Date.now();
@@ -76,13 +75,14 @@ export class Ingestor extends EventEmitter {
     tse: "unknown" as IngestionStatus["tse"],
   };
   private ready: Promise<void>;
+  private cycleNotPublished: string[] = [];
+  private lastNotPublishedCount = -1;
 
   constructor(config = loadConfig()) {
     super();
     this.setMaxListeners(0);
     this.config = config;
     this.archive = new Archive(config.dataDir);
-    this.electionCode = config.electionCode || null;
 
     // Presidente é divulgado tanto no total nacional quanto por UF.
     const scopes = ["br", ...STATES.map((s) => s.uf.toLowerCase())];
@@ -138,10 +138,7 @@ export class Ingestor extends EventEmitter {
     let networkFailures = 0;
     let attempts = 0;
     try {
-      if (!this.electionCode) {
-        this.electionCode = await this.discoverElectionCode();
-        if (!this.electionCode) return;
-      }
+      this.cycleNotPublished = [];
       const queue = [...this.races.values()];
       const worker = async () => {
         for (let race = queue.shift(); race; race = queue.shift()) {
@@ -158,7 +155,16 @@ export class Ingestor extends EventEmitter {
         }
       };
       await Promise.all(Array.from({ length: this.config.concurrency }, worker));
-      this.stats.tse = attempts > 0 && networkFailures >= attempts / 2 ? "offline" : "online";
+      const missing = this.cycleNotPublished.length;
+      if (missing !== this.lastNotPublishedCount) {
+        this.lastNotPublishedCount = missing;
+        if (missing > 0)
+          this.log("warn", `${missing} de ${attempts} arquivos ainda não publicados pelo TSE. Exemplo: ${this.cycleNotPublished[0]}`);
+        else this.log("info", `Todos os ${attempts} arquivos acompanhados estão disponíveis no TSE`);
+      }
+      // Todos os arquivos recusados (HTTP 403) indicam bloqueio de acesso, não "ainda não publicado".
+      const allForbidden = attempts > 0 && this.cycleNotPublished.filter((u) => u.endsWith("(HTTP 403)")).length === attempts;
+      this.stats.tse = attempts > 0 && (networkFailures >= attempts / 2 || allForbidden) ? "offline" : "online";
     } finally {
       this.stats.cycles++;
       this.stats.errorsLastCycle = errors;
@@ -168,32 +174,15 @@ export class Ingestor extends EventEmitter {
     }
   }
 
-  private async discoverElectionCode(): Promise<string | null> {
-    try {
-      const url = electionConfigUrl(this.config.endpoint);
-      const res = await this.httpGet(url);
-      if (res.kind !== "new") return null;
-      const entry = pickGeneralElection(parseElectionConfig(JSON.parse(res.body)), this.config.year, this.config.round);
-      if (!entry) {
-        this.log("warn", `Eleição de ${this.config.year} (${this.config.round}º turno) não encontrada em ${url}. Defina TSE_ELECTION_CODE.`);
-        return null;
-      }
-      this.log("info", `Eleição identificada pela configuração oficial: ${entry.code} — ${entry.name}`);
-      this.stats.tse = "online";
-      return entry.code;
-    } catch (err) {
-      this.stats.tse = "offline";
-      this.log("warn", `Não foi possível ler a configuração de eleições do TSE: ${String(err)}`);
-      return null;
-    }
-  }
-
   private async ingestRace(race: RaceState) {
-    const electionCode = this.electionCode!;
-    const url = simplifiedResultUrl(this.config.endpoint, electionCode, race.office, race.scope);
+    const electionCode = electionCodeFor(this.config.electionCodes, race.office);
+    const url = resultFileUrl(this.config.endpoint, electionCode, race.office, race.scope);
     const outcome =
       this.config.source === "mock" ? this.mockFetch(race, electionCode, url) : await this.httpGet(url, race);
-    if (outcome.kind === "not_published") return;
+    if (outcome.kind === "not_published") {
+      this.cycleNotPublished.push(`${url} (HTTP ${outcome.status})`);
+      return;
+    }
     if (outcome.kind === "unchanged") {
       race.lastSuccessAt = Date.now();
       return;
@@ -285,7 +274,7 @@ export class Ingestor extends EventEmitter {
         if (cache?.lastModified) headers["if-modified-since"] = cache.lastModified;
         const res = await fetch(url, { headers, signal: AbortSignal.timeout(this.config.requestTimeoutMs), cache: "no-store" });
         if (res.status === 304) return { kind: "unchanged" };
-        if (res.status === 404 || res.status === 403) return { kind: "not_published" };
+        if (res.status === 404 || res.status === 403) return { kind: "not_published", status: res.status };
         if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status} em ${url}`);
         return {
           kind: "new",
@@ -317,7 +306,7 @@ export class Ingestor extends EventEmitter {
       progress: Math.round(progress * 10_000) / 10_000,
       now: new Date(),
     });
-    if (progress === 0) return { kind: "not_published" };
+    if (progress === 0) return { kind: "not_published", status: 404 };
     return { kind: "new", body: JSON.stringify(raw), url };
   }
 
@@ -371,10 +360,10 @@ export class Ingestor extends EventEmitter {
       this.stats.lastCycleFinishedAt !== null &&
       Date.now() - Date.parse(this.stats.lastCycleFinishedAt) > this.config.pollIntervalMs * 3 + 60_000;
     return {
-      status: !this.electionCode ? "waiting" : this.stats.tse === "offline" || cycleLate ? "degraded" : "operational",
+      status: this.stats.tse === "offline" || cycleLate ? "degraded" : "operational",
       source: this.config.source,
       tse: this.stats.tse,
-      electionCode: this.electionCode,
+      electionCode: `${this.config.electionCodes.federal} (federal) / ${this.config.electionCodes.state} (estadual)`,
       round: this.config.round,
       pollIntervalMs: this.config.pollIntervalMs,
       startedAt: new Date(this.startedAt).toISOString(),
@@ -388,6 +377,7 @@ export class Ingestor extends EventEmitter {
       racesWithData: withData,
       racesFinished: finished,
       errorsLastCycle: this.stats.errorsLastCycle,
+      notPublishedLastCycle: Math.max(0, this.lastNotPublishedCount),
     };
   }
 

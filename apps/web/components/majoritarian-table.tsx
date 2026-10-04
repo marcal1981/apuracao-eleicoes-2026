@@ -28,6 +28,7 @@ export function MajoritarianTable({ race, seats }: { race: PublishedRace; seats:
                 </div>
                 <div className="truncate text-xs text-muted">
                   {c.number} · {c.party}
+                  {c.coalition ? ` (${c.coalition})` : ""}
                   {c.running ? ` · ${c.running}` : ""}
                 </div>
               </div>

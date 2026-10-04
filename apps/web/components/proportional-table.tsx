@@ -19,7 +19,10 @@ export function ProportionalTable({ race }: { race: PublishedRace }) {
   const elected = race.candidates.filter((c) => c.elected);
   const byParty = useMemo(() => {
     const map = new Map<string, number>();
-    for (const c of elected) map.set(c.party, (map.get(c.party) ?? 0) + 1);
+    for (const c of elected) {
+      const group = c.coalition ?? c.party;
+      map.set(group, (map.get(group) ?? 0) + 1);
+    }
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
   }, [elected]);
 
@@ -28,7 +31,11 @@ export function ProportionalTable({ race }: { race: PublishedRace }) {
     return race.candidates.filter(
       (c) =>
         (!onlyElected || c.elected) &&
-        (!q || c.name.toLowerCase().includes(q) || c.party.toLowerCase().includes(q) || c.number.includes(q)),
+        (!q ||
+          c.name.toLowerCase().includes(q) ||
+          c.party.toLowerCase().includes(q) ||
+          (c.coalition ?? "").toLowerCase().includes(q) ||
+          c.number.includes(q)),
     );
   }, [race.candidates, query, onlyElected]);
 
@@ -36,7 +43,7 @@ export function ProportionalTable({ race }: { race: PublishedRace }) {
     <div className="space-y-4">
       {byParty.length > 0 ? (
         <div className="rounded-xl border border-border bg-surface p-4">
-          <h2 className="font-semibold">Cadeiras conforme resultado oficial ({elected.length})</h2>
+          <h2 className="font-semibold">Cadeiras por partido/federação, conforme resultado oficial ({elected.length})</h2>
           <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
             {byParty.map(([party, seats]) => (
               <li key={party} className="flex justify-between gap-3 border-b border-border py-1">
@@ -92,6 +99,7 @@ export function ProportionalTable({ race }: { race: PublishedRace }) {
                   </div>
                   <div className="text-xs text-muted">
                     {c.number} · {c.party}
+                    {c.coalition ? ` (${c.coalition})` : ""}
                   </div>
                 </td>
                 <td className="px-3 py-2 text-right">{formatInt(c.votes)}</td>
