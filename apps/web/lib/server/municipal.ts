@@ -179,6 +179,15 @@ export class MunicipalTracker {
     return true;
   }
 
+  /** Municípios do mapa com o código do TSE (null enquanto a lista oficial não foi associada). */
+  municipalities(): { ibge: string; name: string; tseCode: string | null }[] {
+    return [...this.entries.values()].map(({ ibge, name, tseCode }) => ({ ibge, name, tseCode }));
+  }
+
+  async whenReady() {
+    await this.ready;
+  }
+
   getSnapshot(): MunicipalSnapshot {
     const list = [...this.entries.values()];
     return {

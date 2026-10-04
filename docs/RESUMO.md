@@ -68,6 +68,14 @@ Plataforma independente para acompanhar a apuração das Eleições 2026 a parti
 - Quando o TSE divulga a situação oficial, a projeção some e passa a valer "✔ Eleito (oficial TSE)".
 - Vagas: Câmara com 513 deputados (SP = 70) e assembleias pelo art. 27 da Constituição (SP = 94). O número de vagas do arquivo do TSE tem prioridade quando é plausível.
 
+### Votos por cidade dos candidatos em destaque
+- No cartão de cada candidato em destaque (Deputados de SP), o botão **"Votos por cidade"** abre:
+  - um mapa de SP colorido pela votação dele;
+  - a lista das 645 cidades, com votos e % dos válidos, e busca;
+  - o botão **Planilha**, que baixa um CSV que abre no Excel.
+- O servidor baixa o arquivo municipal do cargo de cada cidade (`…/dados/sp/sp{codigo}-c0007-e006259-u.json` para Estadual) só para disputas com candidatos em destaque, a cada 3 minutos (`CANDIDATE_CITIES_POLL_MS`), com ETag para não repetir downloads.
+- API: `GET /api/v1/states/sp/candidate-cities?office=deputado-estadual`.
+
 ### API própria (`/api/v1`)
 | Rota | Descrição |
 |---|---|

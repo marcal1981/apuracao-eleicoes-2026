@@ -101,6 +101,8 @@ export interface ParseContext {
   round: number;
   /** Ranking anterior (id → posição) para cálculo de variação. */
   previousPositions?: Map<string, number>;
+  /** Não calcula a projeção de cadeiras (ex.: arquivos municipais, onde ela não se aplica). */
+  skipProjection?: boolean;
 }
 
 function readCandidate(c: Record<string, unknown>, party: string, coalition: string | null): Unranked {
@@ -204,7 +206,7 @@ export function parseSimplifiedResult(raw: unknown, ctx: ParseContext): RaceResu
   const seats =
     fileSeats > 0 && (!tableSeats || Math.abs(fileSeats - tableSeats) <= tableSeats * 0.3) ? fileSeats : tableSeats;
   const validForSeats = parseTseNumber(pick(obj(r.v)?.vv, r.vv));
-  if (OFFICES[ctx.office].system === "proporcional" && seats && validForSeats > 0) {
+  if (!ctx.skipProjection && OFFICES[ctx.office].system === "proporcional" && seats && validForSeats > 0) {
     const result = projectSeats(
       candidates
         .filter((c) => !c.voteDestination || /^v[áa]lido/i.test(c.voteDestination))

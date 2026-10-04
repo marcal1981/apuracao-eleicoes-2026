@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatInt, formatPct, matchesCandidate, type CandidateResult, type Snapshot } from "@apuracao/core";
 import type { PublishedRace } from "@/lib/api-types";
 import { CandidateTag, ElectedLine, PositionChange } from "./status-badge";
+import { CandidateCities } from "./candidate-cities";
 
 const storageKey = (raceKey: string) => `apuracao:fixados:${raceKey}`;
 
@@ -166,6 +167,9 @@ function FeaturedCard({
       </dl>
 
       {series.length > 1 && <Sparkline values={series.map((s) => s.votes)} />}
+      {race.office.startsWith("deputado") && race.scope !== "br" && (
+        <CandidateCities uf={race.scope} office={race.office} candidateId={c.id} />
+      )}
       {race.office.startsWith("deputado") && !c.elected && (
         <p className="mt-2 text-[11px] text-muted">
           {c.projected
