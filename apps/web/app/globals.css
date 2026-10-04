@@ -10,6 +10,7 @@
   --up: #15803d;
   --down: #b91c1c;
   --elected: #15803d;
+  --map-empty: #e5e7eb;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +24,7 @@
     --up: #4ade80;
     --down: #f87171;
     --elected: #4ade80;
+    --map-empty: #262c36;
   }
 }
 

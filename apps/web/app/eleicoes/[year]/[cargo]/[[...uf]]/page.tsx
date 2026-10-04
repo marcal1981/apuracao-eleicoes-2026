@@ -4,6 +4,7 @@ import { OFFICES, findState, isOfficeKey } from "@apuracao/core";
 import { RacePage } from "@/lib/server/race-page";
 import { getIngestor } from "@/lib/server/ingestor";
 import { StateGrid } from "@/components/state-grid";
+import { TotalizationMap } from "@/components/totalization-map";
 
 export const dynamic = "force-dynamic";
 
@@ -28,12 +29,19 @@ export default async function CargoPage({ params }: { params: Promise<Params> })
   const ufParam = uf?.[0];
 
   if (!ufParam) {
-    if (office.scope === "BR") return <RacePage office={cargo} scope="br" />;
+    if (office.scope === "BR")
+      return (
+        <div className="space-y-6">
+          <RacePage office={cargo} scope="br" />
+          <TotalizationMap initialOffice={cargo} />
+        </div>
+      );
     const summaries = getIngestor().listRaces({ office: cargo });
     const extra = cargo === "deputado-estadual" ? getIngestor().listRaces({ office: "deputado-distrital" }) : [];
     return (
       <section className="space-y-4">
         <h1 className="text-2xl font-bold tracking-tight">{office.name} — escolha o estado</h1>
+        <TotalizationMap initialOffice={cargo === "deputado-distrital" ? "deputado-estadual" : cargo} />
         <StateGrid cargo={cargo} summaries={[...summaries, ...extra]} />
       </section>
     );
