@@ -310,5 +310,6 @@ describe("candidatos em destaque", () => {
     expect(matchesCandidate({ name: "ROBERTINHO DA PADARIA", number: "1" }, "padaria")).toBe(true);
     expect(matchesCandidate({ name: "EDUARDO SIVINSKI", number: "1" }, "Eduardo Sivinsk")).toBe(true);
     expect(matchesCandidate({ name: "EDUARDO SIVINSK", number: "1" }, "Eduardo Sivinsk")).toBe(true);
+    expect(matchesCandidate({ name: "DR. ELTON", number: "1" }, "DR ELTON")).toBe(true);
   });
 });
