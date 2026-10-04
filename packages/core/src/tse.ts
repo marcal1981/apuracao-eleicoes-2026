@@ -389,7 +389,12 @@ export function matchesCandidate(c: { name: string; number: string }, query: str
   // Compara palavras inteiras: "CANDIDATO K" não deve casar com "CANDIDATO K1".
   const words = (s: string) =>
     ` ${s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, " ").trim()} `;
-  return words(c.name).includes(words(q));
+  const name = words(c.name);
+  const wanted = words(q);
+  if (name.includes(wanted)) return true;
+  // Tolera grafia incompleta no fim do nome (ex.: "SIVINSK" encontra "SIVINSKI"), só para palavras com 4+ letras.
+  const last = wanted.trim().split(" ").pop() ?? "";
+  return last.length >= 4 && name.includes(wanted.trimEnd());
 }
 
 export interface FeaturedCandidate {
