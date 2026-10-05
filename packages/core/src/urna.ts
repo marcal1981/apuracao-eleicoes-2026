@@ -218,74 +218,84 @@ function derInt(node: DerNode | undefined): number | null {
   return n;
 }
 
-/**
- * Um ResultadoVotacaoPorEleicao: (idEleicao, qtdEleitoresAptos, resultadosVotacao), e cada resultado por cargo
- * (tipoCargo, qtdComparecimento, totaisVotosCargo). Os campos são lidos pela posição, então serve tanto para
- * o arquivo do TSE (tipos explícitos) quanto para a codificação com etiquetas de contexto.
- */
-function asElectionResult(n: DerNode): { electorate: number; turnout: number } | null {
-  const [id, aptos, list] = n.children ?? [];
-  const electorate = derInt(aptos);
-  if (!n.constructed || derInt(id) === null || electorate === null || !list?.constructed || !list.children?.length) return null;
-  let field = 0;
-  for (const item of list.children) {
-    const [tipo, comp, totals] = item.children ?? [];
-    const t = derInt(comp);
-    if (!item.constructed || derInt(tipo) === null || t === null || !totals?.constructed) return null;
-    if (t <= electorate) field = Math.max(field, t);
+/** Soma da quantidade de votos (2º campo) de uma lista de votáveis; null se não for uma lista desse tipo. */
+function voteSum(list: DerNode | undefined): number | null {
+  if (!list?.constructed || !list.children?.length) return null;
+  let sum = 0;
+  for (const v of list.children) {
+    const q = v.constructed && (v.children?.length ?? 0) >= 2 && !v.children![1]!.constructed ? derInt(v.children![1]) : null;
+    if (q === null || q < 0) return null;
+    sum += q;
   }
-  if (electorate > 10_000) return null;
-  // Comparecimento: cada eleitor deixa um voto (nominal, legenda, branco ou nulo) em cada cargo, então a soma
-  // dos votos de um cargo de vaga única é o comparecimento. Usa a maior soma que não passa do eleitorado
-  // (Senador com duas vagas soma o dobro e fica de fora). O campo qtdComparecimento serve de alternativa.
-  const votes = maxVoteSum(list, electorate);
-  return { electorate, turnout: Math.max(votes, field) };
+  return sum;
 }
 
-/** Maior soma de votos (2º campo de cada item) entre as listas de votáveis dentro do nó, limitada ao eleitorado. */
-function maxVoteSum(node: DerNode, limit: number): number {
-  let best = 0;
-  const visit = (n: DerNode) => {
-    if (!n.children?.length) return;
-    // Uma lista de votáveis: todos os itens são estruturas cujo 2º campo é um número (a quantidade de votos).
-    if (n.children.every((c) => c.constructed && (c.children?.length ?? 0) >= 2 && derInt(c.children![1]) !== null && !c.children![1]!.constructed)) {
-      const sum = n.children.reduce((a, c) => a + derInt(c.children![1])!, 0);
-      if (sum <= limit) best = Math.max(best, sum);
-    }
-    for (const c of n.children) if (c.constructed) visit(c);
-  };
-  visit(node);
-  return best;
+/**
+ * Um ResultadoVotacao (resultado de um tipo de cargo): (tipoCargo, qtdComparecimento, totaisVotosCargo), em que
+ * totaisVotosCargo lista os cargos (codigoCargo, ordemImpressao, votosVotaveis). Só é aceito se a soma dos votos
+ * de algum cargo for exatamente o comparecimento — cada eleitor deixa um voto (nominal, legenda, branco ou nulo)
+ * em cada cargo de vaga única. Isso evita confundir o comparecimento com outros números do boletim.
+ */
+function turnoutOf(n: DerNode): number | null {
+  const [tipo, comp, cargos] = n.children ?? [];
+  const turnout = derInt(comp);
+  if (!n.constructed || derInt(tipo) === null || comp?.constructed || turnout === null || turnout <= 0) return null;
+  if (!cargos?.constructed || !cargos.children?.length) return null;
+  for (const cargo of cargos.children) {
+    if (cargo.constructed && voteSum(cargo.children?.[2]) === turnout) return turnout;
+  }
+  return null;
 }
 
-function findElectionResults(nodes: DerNode[], depth = 0): { electorate: number; turnout: number }[] {
+interface ElectionNumbers {
+  electorate: number;
+  turnout: number;
+}
+
+/**
+ * Procura, em qualquer nível, uma eleição: estrutura com números e uma lista de ResultadoVotacao. Os eleitores
+ * aptos são o número da eleição que fica entre o comparecimento e um limite de seção (o código da eleição,
+ * que vem primeiro, é maior que isso).
+ */
+function findElections(nodes: DerNode[], depth = 0, out: ElectionNumbers[] = []): ElectionNumbers[] {
   for (const n of nodes) {
     if (n.constructed && n.children?.length) {
-      const results = n.children.map(asElectionResult);
-      if (results.every((r) => r !== null)) return results as { electorate: number; turnout: number }[];
-      const inner = findElectionResults(n.children, depth + 1);
-      if (inner.length) return inner;
+      let turnout: number | null = null;
+      let list: DerNode | null = null;
+      for (const c of n.children) {
+        if (!c.constructed || !c.children?.length) continue;
+        const values = c.children.map(turnoutOf);
+        if (values.every((v) => v !== null)) {
+          turnout = Math.max(...(values as number[]));
+          list = c;
+          break;
+        }
+      }
+      if (turnout !== null && list) {
+        const ints = n.children.filter((c) => c !== list && !c.constructed).map(derInt);
+        const electorate = ints.find((v) => v !== null && v >= turnout! && v <= 5_000);
+        if (electorate !== undefined && electorate !== null) out.push({ electorate, turnout });
+        continue;
+      }
+      findElections(n.children, depth + 1, out);
     } else if (!n.constructed && n.value.length > 16 && depth < 6) {
       // OCTET STRING com outra estrutura dentro (o conteúdo do envelope).
       const inner = readDer(n.value, 0);
-      if (inner) {
-        const found = findElectionResults(inner, depth + 1);
-        if (found.length) return found;
-      }
+      if (inner) findElections(inner, depth + 1, out);
     }
   }
-  return [];
+  return out;
 }
 
 /** Lê eleitores aptos e comparecimento do boletim de urna binário (-bu.dat). */
 export function parseBuDer(bytes: Uint8Array): BuSummary | null {
   const root = readDer(bytes);
   if (!root) return null;
-  const results = findElectionResults(root);
-  if (results.length === 0) return null;
+  const elections = findElections(root);
+  if (elections.length === 0) return null;
   // Uma entrada por eleição (federal e estadual); os eleitores da urna são os mesmos.
-  const electorate = Math.max(...results.map((r) => r.electorate));
-  const turnout = Math.max(...results.map((r) => r.turnout));
+  const electorate = Math.max(...elections.map((e) => e.electorate));
+  const turnout = Math.max(...elections.map((e) => e.turnout));
   return { electorate, turnout, abstention: electorate - turnout, place: null };
 }
 

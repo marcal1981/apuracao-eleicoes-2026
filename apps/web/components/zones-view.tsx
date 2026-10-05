@@ -212,7 +212,7 @@ export function ZonesView({ slug }: { slug: string }) {
         </div>
       )}
 
-      {data && data.totals.read > 0 && data.totals.abstentionPct > 60 && (
+      {data && data.totals.read > 50 && (data.totals.abstentionPct > 60 || data.totals.abstentionPct < 3) && (
         <p role="alert" className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-2 text-sm">
           A abstenção calculada ({formatPct(data.totals.abstentionPct)}) está fora do normal — provavelmente o boletim de urna
           não foi lido corretamente. Abra &quot;Detalhes dos arquivos do TSE&quot; no fim da página e mande um print.

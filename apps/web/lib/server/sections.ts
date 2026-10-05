@@ -25,8 +25,8 @@ import { USER_AGENT, type Ingestor } from "./ingestor";
 import type { MunicipalityRegistry } from "./municipal";
 import { PollingPlaces } from "./locais";
 
-// 2: comparecimento passou a vir da soma dos votos do boletim (a versão 1 guardou números errados).
-const CACHE_VERSION = 2;
+// 3: aptos e comparecimento lidos da eleição e conferidos com a soma dos votos (versões 1 e 2 guardaram números errados).
+const CACHE_VERSION = 3;
 const CONCURRENCY = 6;
 
 export interface SectionAbstention {

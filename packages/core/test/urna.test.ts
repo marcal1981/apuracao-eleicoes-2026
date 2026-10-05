@@ -61,68 +61,64 @@ describe("arquivos de urna", () => {
     expect(aux.buKind).toBe("der");
   });
 
-  it("lê aptos e comparecimento do boletim binário", () => {
-    // Codificador DER mínimo para montar um boletim de teste.
-    const tlv = (tag: number, body: number[]) => {
-      const len = body.length < 128 ? [body.length] : [0x82, body.length >> 8, body.length & 255];
-      return [tag, ...len, ...body];
-    };
-    const int = (tag: number, n: number) => tlv(tag, n < 128 ? [n] : n < 32768 ? [n >> 8, n & 255] : [0, n >> 8, n & 255]);
-    const seq = (...items: number[][]) => tlv(0x30, items.flat());
-    const cargo = (tipo: number, comp: number) => seq(int(0x80, tipo), int(0x81, comp), tlv(0xa2, seq(int(0x80, 1), int(0x81, 50))));
-    const eleicao = (id: number, aptos: number, comp: number) =>
-      seq(int(0x80, id), int(0x81, aptos), tlv(0xa2, [...cargo(1, comp), ...cargo(2, comp)]));
-    const bu = seq(
-      tlv(0xa0, int(0x80, 5)), // cabeçalho
-      tlv(0xa3, [...int(0x80, 70998), ...int(0x81, 412)]), // identificação
-      int(0x86, 12), // qtdEleitoresLibCodigo
-      tlv(0xa8, [...eleicao(6257, 349, 268), ...eleicao(6259, 349, 268)]),
-    );
-    const envelope = seq(tlv(0xa0, int(0x80, 1)), int(0x81, 3), tlv(0x85, bu));
-    expect(parseBuDer(Uint8Array.from(envelope))).toEqual({ electorate: 349, turnout: 268, abstention: 81, place: null });
-    expect(parseBuDer(Uint8Array.from([1, 2, 3]))).toBeNull();
-    expect(describeDer(Uint8Array.from(envelope))).toContain("[1] 3");
-  });
-
-  it("lê o boletim no formato do TSE (tipos explícitos, conteúdo em OCTET STRING)", () => {
-    const tlv = (tag: number, body: number[]) => {
-      const len = body.length < 128 ? [body.length] : [0x82, body.length >> 8, body.length & 255];
-      return [tag, ...len, ...body];
-    };
-    const int = (n: number) => tlv(0x02, n < 128 ? [n] : n < 32768 ? [n >> 8, n & 255] : [0, n >> 8, n & 255]);
-    const en = (n: number) => tlv(0x0a, [n]);
-    const seq = (...items: number[][]) => tlv(0x30, items.flat());
-    const str = (t: string) => tlv(0x1b, [...t].map((c) => c.charCodeAt(0)));
-    // Voto em branco: sem identificação do votável (só a assinatura).
-    const votavel = seq(en(2), int(7), tlv(0x04, [1, 2, 3]));
-    const cargo = (tipo: number, comp: number) => seq(en(tipo), int(comp), seq(seq(tlv(0x81, [1]), int(1), seq(votavel))));
-    const eleicao = (id: number) => seq(int(id), int(412), seq(cargo(1, 330), cargo(2, 330)));
-    const bu = seq(
-      seq(str("20261004T191404"), tlv(0x82, [0x0c, 0x94])),
+  // Codificador DER mínimo para montar boletins de teste no formato do TSE.
+  const tlv = (tag: number, body: number[]) => {
+    const len = body.length < 128 ? [body.length] : [0x82, body.length >> 8, body.length & 255];
+    return [tag, ...len, ...body];
+  };
+  const int = (n: number) => {
+    const bytes: number[] = [];
+    for (let v = n; ; v = Math.floor(v / 256)) {
+      bytes.unshift(v % 256);
+      if (v < 256) break;
+    }
+    if (bytes[0]! & 0x80) bytes.unshift(0);
+    return tlv(0x02, bytes);
+  };
+  const en = (n: number) => tlv(0x0a, [n]);
+  const seq = (...items: number[][]) => tlv(0x30, items.flat());
+  const text = (t: string) => tlv(0x1b, [...t].map((c) => c.charCodeAt(0)));
+  const sig = tlv(0x04, [9, 9]);
+  const nominal = (votes: number, num: number) => seq(en(1), int(votes), seq(int(10), int(num)), sig);
+  const branco = (votes: number) => seq(en(2), int(votes), sig);
+  const nulo = (votes: number) => seq(en(3), int(votes), sig);
+  // Cargo: (codigoCargo, ordemImpressao, votosVotaveis).
+  const cargo = (code: number, ordem: number, ...votaveis: number[][]) => seq(tlv(0x81, [code]), int(ordem), seq(...votaveis));
+  // Tipo de cargo: (tipoCargo, qtdComparecimento, cargos).
+  const tipo = (t: number, comp: number, ...cargos: number[][]) => seq(en(t), int(comp), seq(...cargos));
+  const eleicao = (id: number, aptos: number, ...tipos: number[][]) => seq(int(id), int(aptos), seq(...tipos));
+  const boletim = (...eleicoes: number[][]) =>
+    seq(
+      seq(text("20261004T191404"), tlv(0x82, [0x0c, 0x94])),
       en(2),
       tlv(0xa0, [...seq(int(70998), int(412)), ...int(1643), ...int(504)]),
-      seq(eleicao(6257), eleicao(6259)),
+      seq(...eleicoes),
     );
-    const envelope = seq(seq(str("20261004T191404"), tlv(0x82, [0x0c, 0x94])), en(2), tlv(0x04, bu));
-    expect(parseBuDer(Uint8Array.from(envelope))).toEqual({ electorate: 412, turnout: 330, abstention: 82, place: null });
+  const envelope = (bu: number[]) => Uint8Array.from(seq(seq(text("20261004T191404"), tlv(0x82, [0x0c, 0x94])), en(2), tlv(0x04, bu)));
+
+  it("lê aptos e comparecimento do boletim de urna (formato do TSE)", () => {
+    // 280 aptos, 230 compareceram. Governador soma 230; Senador (2 votos por eleitor) soma 460;
+    // deputados somam 230. A ordem de impressão (1..4) e o comparecimento não podem ser confundidos.
+    const estadual = eleicao(
+      6259,
+      280,
+      tipo(1, 230,
+        cargo(3, 1, nominal(120, 10), nominal(80, 45), branco(18), nulo(12)),
+        cargo(5, 2, nominal(250, 101), nominal(200, 111), branco(10)),
+      ),
+      tipo(2, 230,
+        cargo(6, 3, nominal(100, 1010), nominal(90, 4545), branco(25), nulo(15)),
+        cargo(7, 4, nominal(150, 10100), nominal(60, 45000), branco(20)),
+      ),
+    );
+    const federal = eleicao(6257, 280, tipo(1, 230, cargo(1, 1, nominal(130, 13), nominal(90, 22), branco(5), nulo(5))));
+    expect(parseBuDer(envelope(boletim(federal, estadual)))).toEqual({ electorate: 280, turnout: 230, abstention: 50, place: null });
   });
 
-  it("usa a soma dos votos quando o campo de comparecimento não é o número de eleitores", () => {
-    const tlv = (tag: number, body: number[]) => {
-      const len = body.length < 128 ? [body.length] : [0x82, body.length >> 8, body.length & 255];
-      return [tag, ...len, ...body];
-    };
-    const int = (n: number) => tlv(0x02, n < 128 ? [n] : [n >> 8, n & 255]);
-    const en = (n: number) => tlv(0x0a, [n]);
-    const seq = (...items: number[][]) => tlv(0x30, items.flat());
-    const sig = tlv(0x04, [9, 9]);
-    const nominal = (votes: number, num: number) => seq(en(1), int(votes), seq(int(10), int(num)), sig);
-    const branco = (votes: number) => seq(en(2), int(votes), sig);
-    // Governador: 120 + 80 + 18 brancos + 12 nulos = 230 eleitores; Senador (2 votos por eleitor) soma 460.
-    const governador = seq(tlv(0x81, [3]), int(1), seq(nominal(120, 10), nominal(80, 45), branco(18), seq(en(3), int(12), sig)));
-    const senador = seq(tlv(0x81, [5]), int(2), seq(nominal(250, 101), nominal(200, 111), branco(10)));
-    const eleicao = seq(int(6259), int(280), seq(seq(en(1), int(5), seq(governador, senador))));
-    const bu = seq(seq(int(1)), en(2), seq(eleicao));
-    expect(parseBuDer(Uint8Array.from(seq(en(2), tlv(0x04, bu))))).toEqual({ electorate: 280, turnout: 230, abstention: 50, place: null });
+  it("não aceita comparecimento que não bate com a soma dos votos", () => {
+    const errado = eleicao(6259, 280, tipo(1, 5, cargo(3, 1, nominal(120, 10), nominal(80, 45))));
+    expect(parseBuDer(envelope(boletim(errado)))).toBeNull();
+    expect(parseBuDer(Uint8Array.from([1, 2, 3]))).toBeNull();
+    expect(describeDer(envelope(boletim(errado)))).toContain("u2 70998");
   });
 });
