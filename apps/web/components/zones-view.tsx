@@ -202,6 +202,10 @@ export function ZonesView({ slug }: { slug: string }) {
               )}
             </div>
           )}
+          {data.progress.lastError && <p className="text-xs">Último problema: {data.progress.lastError}</p>}
+          {data.progress.failures > 0 && data.sample.bu && (
+            <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-black/5 p-2 text-[10px]">{data.sample.bu}</pre>
+          )}
           <p className="text-xs text-muted">
             O sistema tenta de novo a cada 3 minutos. Se continuar assim, mande um print deste quadro.
           </p>

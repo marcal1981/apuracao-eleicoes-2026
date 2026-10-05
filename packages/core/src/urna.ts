@@ -98,18 +98,33 @@ export interface SectionAux {
   hash: string | null;
   /** Arquivos disponíveis para o hash mais recente. */
   files: string[];
+  /** Arquivo do boletim de urna: binário (-bu.dat / .bu) ou, em anos anteriores, a imagem em texto (.imgbu). */
+  buFile: string | null;
+  buKind: "der" | "text" | null;
 }
 
 /** Lê o arquivo auxiliar de uma seção e escolhe o hash mais recente que tenha arquivos. */
 export function parseSectionAux(raw: unknown): SectionAux {
   const o = obj(raw) ?? {};
   const hashes = (Array.isArray(o.hashes) ? o.hashes : []).map(obj).filter((h): h is Record<string, unknown> => !!h);
-  const usable = hashes.filter((h) => str(h.hash) && Array.isArray(h.nmarq) && h.nmarq.length > 0);
+  // Arquivos: "nmarq" (lista de nomes, até 2024) ou "arq" (lista de { nm, tp }, 2026).
+  const filesOf = (h: Record<string, unknown>) => {
+    const list = Array.isArray(h.nmarq) ? h.nmarq : Array.isArray(h.arq) ? h.arq : [];
+    return list
+      .map((f) => (typeof f === "string" ? { nm: f, tp: "" } : { nm: str(obj(f)?.nm), tp: str(obj(f)?.tp).toLowerCase() }))
+      .filter((f) => f.nm);
+  };
+  const usable = hashes.filter((h) => str(h.hash) && filesOf(h).length > 0);
   const last = usable[usable.length - 1];
+  const files = last ? filesOf(last) : [];
+  const der = files.find((f) => f.tp === "bu" || /(-bu\.dat|\.bu)$/i.test(f.nm));
+  const text = files.find((f) => f.tp === "imgbu" || /\.imgbu$/i.test(f.nm));
   return {
     status: str(o.st) || str(last?.st) || str(hashes[hashes.length - 1]?.st),
     hash: last ? str(last.hash) : null,
-    files: last ? (last.nmarq as unknown[]).map(str).filter(Boolean) : [],
+    files: files.map((f) => f.nm),
+    buFile: der?.nm ?? text?.nm ?? null,
+    buKind: der ? "der" : text ? "text" : null,
   };
 }
 
@@ -137,4 +152,138 @@ export function parseBuImage(text: string): BuSummary | null {
   if (abstention === null) abstention = Math.max(0, electorate - turnout);
   const place = /Local\s+de\s+vota\S*\s*:?\s+(\d+)/i.exec(text)?.[1] ?? null;
   return { electorate, turnout, abstention, place };
+}
+
+// ---------------------------------------------------------------------------
+// Boletim de urna binário (ASN.1 DER, especificação "bu.asn1" do TSE)
+//
+// EntidadeEnvelopeGenerico → conteudo (OCTET STRING) = EntidadeBoletimUrna, que traz
+// resultadosVotacaoPorEleicao: SEQUENCE OF { idEleicao [0], qtdEleitoresAptos [1],
+//   resultadosVotacao [2] SEQUENCE OF { tipoCargo [0], qtdComparecimento [1], totaisVotosCargo [2] } }.
+// A leitura procura esse formato na árvore em vez de depender da posição exata de cada campo.
+
+interface DerNode {
+  cls: number; // 0 universal, 2 contexto
+  tag: number;
+  constructed: boolean;
+  value: Uint8Array;
+  children: DerNode[] | null;
+}
+
+function readDer(buf: Uint8Array, depth = 0): DerNode[] | null {
+  const out: DerNode[] = [];
+  let p = 0;
+  while (p < buf.length) {
+    if (depth === 0 && out.length > 0 && buf[p] === 0) break; // preenchimento no fim do arquivo
+    const first = buf[p++]!;
+    let tag = first & 0x1f;
+    if (tag === 0x1f) {
+      tag = 0;
+      let b: number;
+      do {
+        if (p >= buf.length) return null;
+        b = buf[p++]!;
+        tag = tag * 128 + (b & 0x7f);
+      } while (b & 0x80);
+    }
+    if (p >= buf.length) return null;
+    let len = buf[p++]!;
+    if (len & 0x80) {
+      const n = len & 0x7f;
+      if (n === 0 || n > 4 || p + n > buf.length) return null;
+      len = 0;
+      for (let i = 0; i < n; i++) len = len * 256 + buf[p++]!;
+    }
+    if (p + len > buf.length) return null;
+    const value = buf.subarray(p, p + len);
+    p += len;
+    const constructed = (first & 0x20) !== 0;
+    let children: DerNode[] | null = null;
+    if (constructed) {
+      if (depth > 40) return null;
+      children = readDer(value, depth + 1);
+      if (!children) return null;
+    }
+    out.push({ cls: first >> 6, tag, constructed, value, children });
+  }
+  return out;
+}
+
+function derInt(node: DerNode | undefined): number | null {
+  if (!node) return null;
+  if (node.constructed) return node.children?.length === 1 ? derInt(node.children[0]) : null;
+  if (node.value.length === 0 || node.value.length > 6) return null;
+  let n = node.value[0]! & 0x80 ? -1 : 0;
+  for (const b of node.value) n = n * 256 + b;
+  return n;
+}
+
+const ctx = (n: DerNode, tag: number) => n.children?.find((c) => c.cls === 2 && c.tag === tag);
+
+/** Um ResultadoVotacaoPorEleicao: [0] eleição, [1] aptos, [2] lista de resultados por cargo com [1] comparecimento. */
+function asElectionResult(n: DerNode): { electorate: number; turnout: number } | null {
+  if (!n.constructed) return null;
+  const electorate = derInt(ctx(n, 1));
+  const list = ctx(n, 2);
+  if (electorate === null || derInt(ctx(n, 0)) === null || !list?.children?.length) return null;
+  let turnout: number | null = null;
+  for (const item of list.children) {
+    if (!item.constructed || !ctx(item, 2)?.constructed) return null;
+    const t = derInt(ctx(item, 1));
+    if (t === null || derInt(ctx(item, 0)) === null) return null;
+    turnout = Math.max(turnout ?? 0, t);
+  }
+  return turnout === null || turnout > electorate ? null : { electorate, turnout };
+}
+
+function findElectionResults(nodes: DerNode[], depth = 0): { electorate: number; turnout: number }[] {
+  for (const n of nodes) {
+    if (n.constructed && n.children?.length) {
+      const results = n.children.map(asElectionResult);
+      if (results.every((r) => r !== null)) return results as { electorate: number; turnout: number }[];
+      const inner = findElectionResults(n.children, depth + 1);
+      if (inner.length) return inner;
+    } else if (!n.constructed && n.value.length > 16 && depth < 6) {
+      // OCTET STRING com outra estrutura dentro (o conteúdo do envelope).
+      const inner = readDer(n.value, 0);
+      if (inner) {
+        const found = findElectionResults(inner, depth + 1);
+        if (found.length) return found;
+      }
+    }
+  }
+  return [];
+}
+
+/** Lê eleitores aptos e comparecimento do boletim de urna binário (-bu.dat). */
+export function parseBuDer(bytes: Uint8Array): BuSummary | null {
+  const root = readDer(bytes);
+  if (!root) return null;
+  const results = findElectionResults(root);
+  if (results.length === 0) return null;
+  // Uma entrada por eleição (federal e estadual); os eleitores da urna são os mesmos.
+  const electorate = Math.max(...results.map((r) => r.electorate));
+  const turnout = Math.max(...results.map((r) => r.turnout));
+  return { electorate, turnout, abstention: electorate - turnout, place: null };
+}
+
+/** Resumo da estrutura do arquivo (para diagnóstico quando a leitura falha). */
+export function describeDer(bytes: Uint8Array, maxLines = 40): string {
+  const lines: string[] = [];
+  const walk = (nodes: DerNode[], indent: string) => {
+    for (const n of nodes) {
+      if (lines.length >= maxLines) return;
+      const label = `${indent}${n.cls === 2 ? `[${n.tag}]` : `u${n.tag}`} ${n.constructed ? "{" : derInt(n) ?? `${n.value.length} bytes`}`;
+      lines.push(label);
+      if (n.children) walk(n.children, indent + "  ");
+      else if (n.value.length > 8 && n.value[0] === 0x30) {
+        const inner = readDer(n.value, 0);
+        if (inner) walk(inner, indent + "  » ");
+      }
+    }
+  };
+  const root = readDer(bytes);
+  if (!root) return `não é ASN.1 válido; início: ${[...bytes.subarray(0, 32)].map((b) => b.toString(16).padStart(2, "0")).join(" ")}`;
+  walk(root, "");
+  return lines.join("\n");
 }

@@ -11,6 +11,8 @@ import {
   electionConfigUrl,
   findPleitoCode,
   normalizePlaceName,
+  describeDer,
+  parseBuDer,
   parseBuImage,
   parseSectionAux,
   parseUrnaConfig,
@@ -19,7 +21,7 @@ import {
   urnaConfigUrl,
   type SectionRef,
 } from "@apuracao/core";
-import type { Ingestor } from "./ingestor";
+import { USER_AGENT, type Ingestor } from "./ingestor";
 import type { MunicipalityRegistry } from "./municipal";
 import { PollingPlaces } from "./locais";
 
@@ -239,22 +241,23 @@ export class SectionAbstentionTracker {
     const auxRaw = JSON.parse(auxRes.body) as Record<string, unknown>;
     this.sample.aux ??= Object.keys(auxRaw);
     const aux = parseSectionAux(auxRaw);
-    const img = aux.files.find((f) => /\.imgbu$/i.test(f));
-    if (!aux.hash || !img) {
-      this.noteAux(auxUrl, `arquivo lido, mas sem boletim (.imgbu) — situação "${aux.status}"`, auxRes.body);
+    if (!aux.hash || !aux.buFile) {
+      this.noteAux(auxUrl, `arquivo lido, mas sem boletim de urna — situação "${aux.status}"`, auxRes.body);
       this.setPending(r, aux.status || "Sem boletim de urna");
       return true;
     }
-    const buUrl = sectionFileUrl(endpoint, pleito, this.uf, tseCode, r, aux.hash, img);
-    const buRes = await this.ingestor.httpGet(buUrl, undefined, 20_000);
-    if (buRes.kind !== "new") {
-      this.noteAux(buUrl, `boletim não baixado (${buRes.kind === "not_published" ? `HTTP ${buRes.status}` : buRes.kind})`, auxRes.body);
+    const buUrl = sectionFileUrl(endpoint, pleito, this.uf, tseCode, r, aux.hash, aux.buFile);
+    const bytes = await this.fetchBytes(buUrl);
+    if (!bytes) {
+      this.noteAux(buUrl, "boletim ainda não disponível no TSE", auxRes.body);
       this.setPending(r, aux.status || "Boletim ainda não publicado");
       return true;
     }
-    this.sample.bu ??= buRes.body.slice(0, 1500);
-    const bu = parseBuImage(buRes.body);
-    if (!bu) throw new Error("números não encontrados no boletim de urna (.imgbu)");
+    const bu = aux.buKind === "der" ? parseBuDer(bytes) : parseBuImage(new TextDecoder("latin1").decode(bytes));
+    if (!this.sample.bu || !bu) {
+      this.sample.bu = aux.buKind === "der" ? `${buUrl}\n${describeDer(bytes)}` : new TextDecoder("latin1").decode(bytes).slice(0, 1500);
+    }
+    if (!bu) throw new Error(`números não encontrados no boletim de urna (${aux.buFile})`);
     this.sections.set(keyOf(r), {
       ...r,
       place: bu.place,
@@ -266,6 +269,21 @@ export class SectionAbstentionTracker {
       done: true,
     });
     return true;
+  }
+
+  /** Baixa um arquivo binário da urna; null se ainda não publicado. */
+  private async fetchBytes(url: string): Promise<Uint8Array | null> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const res = await fetch(url, { headers: { "user-agent": USER_AGENT }, signal: AbortSignal.timeout(20_000), cache: "no-store" });
+        if (res.status === 404 || res.status === 403) return null;
+        if (!res.ok) throw new Error(`HTTP ${res.status} em ${url}`);
+        return new Uint8Array(await res.arrayBuffer());
+      } catch (err) {
+        if (attempt >= 2) throw err;
+        await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
+      }
+    }
   }
 
   private noteAux(url: string, result: string, body: string | null) {
