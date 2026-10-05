@@ -158,8 +158,8 @@ export function parseBuImage(text: string): BuSummary | null {
 // Boletim de urna binário (ASN.1 DER, especificação "bu.asn1" do TSE)
 //
 // EntidadeEnvelopeGenerico → conteudo (OCTET STRING) = EntidadeBoletimUrna, que traz
-// resultadosVotacaoPorEleicao: SEQUENCE OF { idEleicao [0], qtdEleitoresAptos [1],
-//   resultadosVotacao [2] SEQUENCE OF { tipoCargo [0], qtdComparecimento [1], totaisVotosCargo [2] } }.
+// resultadosVotacaoPorEleicao: SEQUENCE OF { idEleicao, qtdEleitoresAptos,
+//   resultadosVotacao SEQUENCE OF { tipoCargo, qtdComparecimento, totaisVotosCargo } }.
 // A leitura procura esse formato na árvore em vez de depender da posição exata de cada campo.
 
 interface DerNode {
@@ -218,22 +218,23 @@ function derInt(node: DerNode | undefined): number | null {
   return n;
 }
 
-const ctx = (n: DerNode, tag: number) => n.children?.find((c) => c.cls === 2 && c.tag === tag);
-
-/** Um ResultadoVotacaoPorEleicao: [0] eleição, [1] aptos, [2] lista de resultados por cargo com [1] comparecimento. */
+/**
+ * Um ResultadoVotacaoPorEleicao: (idEleicao, qtdEleitoresAptos, resultadosVotacao), e cada resultado por cargo
+ * (tipoCargo, qtdComparecimento, totaisVotosCargo). Os campos são lidos pela posição, então serve tanto para
+ * o arquivo do TSE (tipos explícitos) quanto para a codificação com etiquetas de contexto.
+ */
 function asElectionResult(n: DerNode): { electorate: number; turnout: number } | null {
-  if (!n.constructed) return null;
-  const electorate = derInt(ctx(n, 1));
-  const list = ctx(n, 2);
-  if (electorate === null || derInt(ctx(n, 0)) === null || !list?.children?.length) return null;
+  const [id, aptos, list] = n.children ?? [];
+  const electorate = derInt(aptos);
+  if (!n.constructed || derInt(id) === null || electorate === null || !list?.constructed || !list.children?.length) return null;
   let turnout: number | null = null;
   for (const item of list.children) {
-    if (!item.constructed || !ctx(item, 2)?.constructed) return null;
-    const t = derInt(ctx(item, 1));
-    if (t === null || derInt(ctx(item, 0)) === null) return null;
+    const [tipo, comp, totals] = item.children ?? [];
+    const t = derInt(comp);
+    if (!item.constructed || derInt(tipo) === null || t === null || !totals?.constructed) return null;
     turnout = Math.max(turnout ?? 0, t);
   }
-  return turnout === null || turnout > electorate ? null : { electorate, turnout };
+  return turnout === null || turnout > electorate || electorate > 10_000 ? null : { electorate, turnout };
 }
 
 function findElectionResults(nodes: DerNode[], depth = 0): { electorate: number; turnout: number }[] {

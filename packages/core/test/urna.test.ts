@@ -83,4 +83,27 @@ describe("arquivos de urna", () => {
     expect(parseBuDer(Uint8Array.from([1, 2, 3]))).toBeNull();
     expect(describeDer(Uint8Array.from(envelope))).toContain("[1] 3");
   });
+
+  it("lê o boletim no formato do TSE (tipos explícitos, conteúdo em OCTET STRING)", () => {
+    const tlv = (tag: number, body: number[]) => {
+      const len = body.length < 128 ? [body.length] : [0x82, body.length >> 8, body.length & 255];
+      return [tag, ...len, ...body];
+    };
+    const int = (n: number) => tlv(0x02, n < 128 ? [n] : n < 32768 ? [n >> 8, n & 255] : [0, n >> 8, n & 255]);
+    const en = (n: number) => tlv(0x0a, [n]);
+    const seq = (...items: number[][]) => tlv(0x30, items.flat());
+    const str = (t: string) => tlv(0x1b, [...t].map((c) => c.charCodeAt(0)));
+    // Voto em branco: sem identificação do votável (só a assinatura).
+    const votavel = seq(en(2), int(7), tlv(0x04, [1, 2, 3]));
+    const cargo = (tipo: number, comp: number) => seq(en(tipo), int(comp), seq(seq(tlv(0x81, [1]), int(1), seq(votavel))));
+    const eleicao = (id: number) => seq(int(id), int(412), seq(cargo(1, 330), cargo(2, 330)));
+    const bu = seq(
+      seq(str("20261004T191404"), tlv(0x82, [0x0c, 0x94])),
+      en(2),
+      tlv(0xa0, [...seq(int(70998), int(412)), ...int(1643), ...int(504)]),
+      seq(eleicao(6257), eleicao(6259)),
+    );
+    const envelope = seq(seq(str("20261004T191404"), tlv(0x82, [0x0c, 0x94])), en(2), tlv(0x04, bu));
+    expect(parseBuDer(Uint8Array.from(envelope))).toEqual({ electorate: 412, turnout: 330, abstention: 82, place: null });
+  });
 });
