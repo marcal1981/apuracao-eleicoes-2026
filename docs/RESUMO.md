@@ -241,14 +241,12 @@ Página `/abstencao/vale-do-paraiba`: abstenção nas **39 cidades da Região Me
 - Planilha da região: `/api/v1/export/abstention?uf=sp&regiao=vale-do-paraiba` (também na página **Arquivos**).
 - A lista de cidades da região fica em `apps/web/lib/regions.ts` (fácil de incluir outras regiões).
 
-## Aba "Abstenção SJC" (por seção eleitoral)
+## Aba "Abstenção SJC" (mapa por zona eleitoral)
 
-Página `/abstencao/sao-jose-dos-campos`: abstenção em **cada seção eleitoral de São José dos Campos**.
+Página `/abstencao/sao-jose-dos-campos`: **mapa de São José dos Campos com a abstenção de cada zona eleitoral**.
 
-- Os números vêm dos **boletins de urna** que o TSE publica por seção (`arquivo-urna`): para cada seção, o arquivo auxiliar e a imagem do boletim (`.imgbu`), de onde saem eleitores aptos, comparecimento e faltosos.
-- Resumo por **zona eleitoral** (clique para filtrar), filtro por **local de votação** (pelo número do local), busca por seção, ordenação.
-- Seções não instaladas ou ainda sem boletim aparecem com a situação informada pelo TSE.
-- A leitura só começa quando a página é aberta pela primeira vez (cerca de 1.400 seções; leva alguns minutos). Boletim lido não muda mais e fica guardado em `data/cities/secoes-sao-jose-dos-campos.json`.
-- Planilha: `/api/v1/export/sections?cidade=sao-jose-dos-campos` (também na página **Arquivos**).
-- Outras cidades: `SECTION_CITIES=sp:São José dos Campos;sp:Taubaté` no `.env` (a página precisa ser criada como a de SJC).
-- No fim da página, "Exemplo do arquivo do TSE (diagnóstico)" mostra o que veio do TSE, caso o formato mude.
+- **Números:** soma dos **boletins de urna** de todas as seções de cada zona (`arquivo-urna` do TSE: arquivo auxiliar + imagem do boletim `.imgbu`, com eleitores aptos, comparecimento e faltosos). A leitura começa quando a página é aberta pela primeira vez (cerca de 1.400 seções, alguns minutos) e fica guardada em `data/cities/secoes-sao-jose-dos-campos.json`.
+- **Mapa:** ruas do OpenStreetMap (biblioteca Leaflet) e contorno do município (IBGE, `public/maps/sao-jose-dos-campos.json`). A Justiça Eleitoral não publica o desenho das zonas: a área de cada zona é traçada ligando os **locais de votação** dela, com as coordenadas do cadastro oficial do TSE (`eleitorado_local_votacao_<ano>.zip`, Portal de Dados Abertos). O arquivo é nacional e grande: é baixado **uma vez**, filtrado para a cidade (`data/cities/locais-sao-jose-dos-campos.json`) e apagado. Se não houver o de 2026, usa o de 2024. Sem acesso ao TSE, coloque o .zip em `data/locais/`.
+- Cor da zona: da menor abstenção (amarelo) à maior (vermelho escuro). Clique numa zona (no mapa ou na tabela) para ver os números dela e os locais de votação com mais abstenção.
+- Planilhas: por zona `/api/v1/export/sections?cidade=sao-jose-dos-campos&agrupar=zona` e por seção `/api/v1/export/sections?cidade=sao-jose-dos-campos` (também na página **Arquivos**).
+- No fim da página, "Detalhes dos arquivos do TSE (diagnóstico)" mostra o que veio do TSE, caso o formato mude.

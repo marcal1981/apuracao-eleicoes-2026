@@ -122,6 +122,9 @@ export default function Arquivos() {
           <a href="/api/v1/export/abstention?uf=sp&regiao=vale-do-paraiba" className={btn}>
             Vale do Paraíba e Litoral Norte
           </a>
+          <a href="/api/v1/export/sections?cidade=sao-jose-dos-campos&agrupar=zona" className={btn}>
+            São José dos Campos (por zona)
+          </a>
           <a href="/api/v1/export/sections?cidade=sao-jose-dos-campos" className={btn}>
             São José dos Campos (por seção)
           </a>

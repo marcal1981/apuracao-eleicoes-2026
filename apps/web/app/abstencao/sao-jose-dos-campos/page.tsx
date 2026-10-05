@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { SectionsView } from "@/components/sections-view";
+import { ZonesView } from "@/components/zones-view";
 
-export const metadata: Metadata = { title: "Abstenção por seção — São José dos Campos" };
+export const metadata: Metadata = { title: "Abstenção por zona eleitoral — São José dos Campos" };
 
 export default function AbstencaoSjcPage() {
-  return <SectionsView slug="sao-jose-dos-campos" />;
+  return <ZonesView slug="sao-jose-dos-campos" />;
 }

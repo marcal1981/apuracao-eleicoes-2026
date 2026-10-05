@@ -21,6 +21,7 @@ import {
 } from "@apuracao/core";
 import type { Ingestor } from "./ingestor";
 import type { MunicipalityRegistry } from "./municipal";
+import { PollingPlaces } from "./locais";
 
 const CACHE_VERSION = 1;
 const CONCURRENCY = 6;
@@ -38,6 +39,17 @@ export interface SectionAbstention {
   done: boolean;
 }
 
+/** Local de votação com as seções dele (coordenadas do cadastro do TSE). */
+export interface PlaceInfo {
+  zone: string;
+  code: string;
+  name: string;
+  address: string;
+  bairro: string;
+  lat: number | null;
+  lon: number | null;
+}
+
 export interface SectionsSnapshot {
   city: string;
   slug: string;
@@ -49,6 +61,8 @@ export interface SectionsSnapshot {
   /** Exemplo do que veio do TSE (ajuda a diagnosticar mudanças de formato). */
   sample: { aux: string[] | null; bu: string | null };
   sections: SectionAbstention[];
+  places: PlaceInfo[];
+  placesStatus: PollingPlaces["snapshot"];
 }
 
 const keyOf = (s: SectionRef) => `${s.zone}-${s.section}`;
@@ -66,6 +80,7 @@ export class SectionAbstentionTracker {
   private readonly cacheFile: string;
   private readonly loaded: Promise<void>;
   private readonly mock: boolean;
+  private readonly places: PollingPlaces;
 
   constructor(
     private readonly ingestor: Ingestor,
@@ -77,6 +92,7 @@ export class SectionAbstentionTracker {
     this.mock = ingestor.config.source === "mock";
     this.cacheFile = path.join(ingestor.config.dataDir, "cities", `secoes-${slug}${this.mock ? "-mock" : ""}.json`);
     this.loaded = this.loadCache();
+    this.places = new PollingPlaces(ingestor, uf, slug);
   }
 
   private async loadCache() {
@@ -160,6 +176,7 @@ export class SectionAbstentionTracker {
         const code = this.tseCode();
         if (!code) throw new Error(`${this.city} não encontrada na lista de municípios do TSE`);
         tseCode = code;
+        this.places.ensure(code);
         pleito = await this.resolvePleito();
         if (this.refs.length === 0) await this.loadRefs(tseCode, pleito);
       }
@@ -267,10 +284,17 @@ export class SectionAbstentionTracker {
   }
 
   getSnapshot(): SectionsSnapshot {
-    const sections = this.refs.map(
-      (r) =>
-        this.sections.get(keyOf(r)) ?? { ...r, place: null, status: "Aguardando leitura", electorate: 0, turnout: 0, abstention: 0, abstentionPct: 0, done: false },
-    );
+    // Local de cada seção: o do boletim de urna; na falta, o do cadastro de locais do TSE.
+    const placeRows = this.mock ? mockPlaces(this.refs) : this.places.rows;
+    const placeOfSection = new Map(placeRows.map((p) => [`${p.zone}-${p.section}`, p.code]));
+    const placeInfo = new Map<string, PlaceInfo>();
+    for (const { section: _s, ...p } of placeRows) if (!placeInfo.has(`${p.zone}-${p.code}`)) placeInfo.set(`${p.zone}-${p.code}`, p);
+    const sections = this.refs.map((r) => {
+      const s =
+        this.sections.get(keyOf(r)) ?? { ...r, place: null, status: "Aguardando leitura", electorate: 0, turnout: 0, abstention: 0, abstentionPct: 0, done: false };
+      const place = s.place ?? placeOfSection.get(`${Number(r.zone)}-${Number(r.section)}`) ?? null;
+      return place === s.place ? s : { ...s, place };
+    });
     const read = sections.filter((s) => s.done);
     const electorate = read.reduce((n, s) => n + s.electorate, 0);
     const turnout = read.reduce((n, s) => n + s.turnout, 0);
@@ -285,12 +309,33 @@ export class SectionAbstentionTracker {
       progress: { ...this.progress },
       sample: this.sample,
       sections,
+      places: [...placeInfo.values()],
+      placesStatus: this.mock ? { status: "ready", source: "simulação", message: null, downloadedMb: 0, count: placeRows.length } : this.places.snapshot,
     };
   }
 }
 
 function pct(part: number, total: number) {
   return total > 0 ? Math.round((part / total) * 10_000) / 100 : 0;
+}
+
+/** Simulação: locais espalhados pela área urbana de São José dos Campos. */
+function mockPlaces(refs: SectionRef[]) {
+  const bairros = ["Centro", "Santana", "Vila Industrial", "Jardim Satélite", "Urbanova", "Eugênio de Melo", "Jardim da Granja", "Campo dos Alemães"];
+  return refs.map((r) => {
+    const code = String(1000 + Math.floor(Number(r.section) / 8) * 10 + (Number(r.zone) % 7));
+    const seed = Number(r.zone) * 7 + Number(code);
+    return {
+      zone: String(Number(r.zone)),
+      section: String(Number(r.section)),
+      code,
+      name: `ESCOLA ESTADUAL ${code}`,
+      address: `RUA ${(seed * 13) % 500}, ${(seed * 7) % 900}`,
+      bairro: bairros[seed % bairros.length]!.toUpperCase(),
+      lat: -23.255 + ((seed * 7919) % 1000) / 1000 * 0.12,
+      lon: -45.95 + ((seed * 104729) % 1000) / 1000 * 0.16,
+    };
+  });
 }
 
 function mockRefs(): SectionRef[] {
