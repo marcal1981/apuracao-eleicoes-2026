@@ -36,6 +36,18 @@ function hull(points: [number, number][]): [number, number][] {
   return [...lower.slice(0, -1), ...upper.slice(0, -1)];
 }
 
+/** Pontos da zona sem os muito distantes do centro (mais de 3× a distância mediana e mais de ~4 km). */
+function core(points: [number, number][]): [number, number][] {
+  if (points.length < 5) return points;
+  const mid = (vals: number[]) => [...vals].sort((a, b) => a - b)[Math.floor(vals.length / 2)]!;
+  const c: [number, number] = [mid(points.map((p) => p[0])), mid(points.map((p) => p[1]))];
+  const k = Math.cos((c[0] * Math.PI) / 180);
+  const dist = (p: [number, number]) => Math.hypot(p[0] - c[0], (p[1] - c[1]) * k);
+  const limit = Math.max(3 * mid(points.map(dist)), 0.036);
+  const kept = points.filter((p) => dist(p) <= limit);
+  return kept.length >= 3 ? kept : points;
+}
+
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 /** Mapa da cidade com a área de cada zona eleitoral (formada pelos locais de votação dela). */
@@ -94,7 +106,9 @@ export function ZoneMap({
         const active = selected === z.code;
         const latlngs = z.points.map((p) => [p.lat, p.lon] as [number, number]);
         latlngs.forEach((p) => bounds.extend(p));
-        const ring = hull(latlngs);
+        // Locais muito afastados (ex.: distrito de São Francisco Xavier) ficam fora da área, só como ponto,
+        // para a zona não virar um triângulo enorme sobre a zona rural.
+        const ring = hull(core(latlngs));
         const style = {
           color: active ? "#0f172a" : z.color,
           weight: active ? 3 : 2,
@@ -115,7 +129,8 @@ export function ZoneMap({
               .addTo(group);
           }
         }
-        const c = latlngs.reduce((a, p) => [a[0] + p[0] / latlngs.length, a[1] + p[1] / latlngs.length], [0, 0]);
+        const inner = core(latlngs);
+        const c = inner.reduce((a, p) => [a[0] + p[0] / inner.length, a[1] + p[1] / inner.length], [0, 0]);
         L.marker(c as [number, number], {
           interactive: false,
           icon: L.divIcon({

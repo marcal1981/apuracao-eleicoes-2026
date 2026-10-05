@@ -35,7 +35,13 @@ interface Snapshot {
   pleito: string | null;
   totals: { sections: number; read: number; electorate: number; turnout: number; abstention: number; abstentionPct: number };
   progress: { running: boolean; done: number; total: number; failures: number; lastError: string | null };
-  sample: { aux: string[] | null; bu: string | null };
+  sample: {
+    aux: string[] | null;
+    bu: string | null;
+    lastAuxUrl?: string | null;
+    lastAuxResult?: string | null;
+    lastAuxBody?: string | null;
+  };
   sections: Section[];
   places: Place[];
   placesStatus: { status: string; source: string | null; message: string | null; downloadedMb: number; count: number };
@@ -121,6 +127,13 @@ export function ZonesView({ slug }: { slug: string }) {
   const p = data?.progress;
   const pct = p && p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
   const ps = data?.placesStatus;
+  // Situações das seções ainda sem boletim lido (ajuda a entender por que não há números).
+  const pending = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of data?.sections ?? []) if (!s.done) counts.set(s.status, (counts.get(s.status) ?? 0) + 1);
+    return [...counts].sort((a, b) => b[1] - a[1]);
+  }, [data]);
+  const nothingRead = !!data && data.sections.length > 0 && data.totals.read === 0 && !data.progress.running;
   const range = zones.filter((z) => z.read > 0).map((z) => z.abstentionPct);
 
   return (
@@ -167,6 +180,33 @@ export function ZonesView({ slug }: { slug: string }) {
         </div>
       )}
       {p?.lastError && !p.running && <p className="text-xs text-muted">Último problema nos boletins: {p.lastError}</p>}
+
+      {nothingRead && data && (
+        <div role="alert" className="space-y-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm">
+          <p className="font-semibold">Os boletins de urna das seções ainda não foram lidos — por isso os números estão zerados.</p>
+          <ul className="list-inside list-disc text-xs">
+            {pending.slice(0, 4).map(([status, count]) => (
+              <li key={status}>
+                {formatInt(count)} seções: {status}
+              </li>
+            ))}
+          </ul>
+          {data.sample.lastAuxUrl && (
+            <div className="text-xs">
+              <div>
+                Última consulta: <span className="break-all font-mono">{data.sample.lastAuxUrl}</span>
+              </div>
+              <div>Resposta: {data.sample.lastAuxResult}</div>
+              {data.sample.lastAuxBody && (
+                <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-black/5 p-2 text-[10px]">{data.sample.lastAuxBody}</pre>
+              )}
+            </div>
+          )}
+          <p className="text-xs text-muted">
+            O sistema tenta de novo a cada 3 minutos. Se continuar assim, mande um print deste quadro.
+          </p>
+        </div>
+      )}
 
       {data && t && t.read > 0 && (
         <dl className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-4">

@@ -59,7 +59,14 @@ export interface SectionsSnapshot {
   totals: { sections: number; read: number; electorate: number; turnout: number; abstention: number; abstentionPct: number };
   progress: { running: boolean; done: number; total: number; failures: number; lastError: string | null };
   /** Exemplo do que veio do TSE (ajuda a diagnosticar mudanças de formato). */
-  sample: { aux: string[] | null; bu: string | null };
+  sample: {
+    aux: string[] | null;
+    bu: string | null;
+    /** Última consulta de arquivo auxiliar que não trouxe boletim: endereço, resposta e trecho do conteúdo. */
+    lastAuxUrl?: string | null;
+    lastAuxResult?: string | null;
+    lastAuxBody?: string | null;
+  };
   sections: SectionAbstention[];
   places: PlaceInfo[];
   placesStatus: PollingPlaces["snapshot"];
@@ -223,7 +230,10 @@ export class SectionAbstentionTracker {
     const auxUrl = sectionAuxUrl(endpoint, pleito, this.uf, tseCode, r);
     const auxRes = await this.ingestor.httpGet(auxUrl, undefined, 20_000);
     if (auxRes.kind !== "new") {
-      if (auxRes.kind === "not_published") this.setPending(r, "Sem arquivo da urna ainda");
+      if (auxRes.kind === "not_published") {
+        this.noteAux(auxUrl, `HTTP ${auxRes.status} (arquivo não encontrado no TSE)`, null);
+        this.setPending(r, `Sem arquivo da urna (HTTP ${auxRes.status})`);
+      }
       return auxRes.kind === "not_published";
     }
     const auxRaw = JSON.parse(auxRes.body) as Record<string, unknown>;
@@ -231,11 +241,14 @@ export class SectionAbstentionTracker {
     const aux = parseSectionAux(auxRaw);
     const img = aux.files.find((f) => /\.imgbu$/i.test(f));
     if (!aux.hash || !img) {
+      this.noteAux(auxUrl, `arquivo lido, mas sem boletim (.imgbu) — situação "${aux.status}"`, auxRes.body);
       this.setPending(r, aux.status || "Sem boletim de urna");
       return true;
     }
-    const buRes = await this.ingestor.httpGet(sectionFileUrl(endpoint, pleito, this.uf, tseCode, r, aux.hash, img), undefined, 20_000);
+    const buUrl = sectionFileUrl(endpoint, pleito, this.uf, tseCode, r, aux.hash, img);
+    const buRes = await this.ingestor.httpGet(buUrl, undefined, 20_000);
     if (buRes.kind !== "new") {
+      this.noteAux(buUrl, `boletim não baixado (${buRes.kind === "not_published" ? `HTTP ${buRes.status}` : buRes.kind})`, auxRes.body);
       this.setPending(r, aux.status || "Boletim ainda não publicado");
       return true;
     }
@@ -253,6 +266,12 @@ export class SectionAbstentionTracker {
       done: true,
     });
     return true;
+  }
+
+  private noteAux(url: string, result: string, body: string | null) {
+    this.sample.lastAuxUrl = url;
+    this.sample.lastAuxResult = result;
+    this.sample.lastAuxBody = body ? body.slice(0, 800) : null;
   }
 
   private setPending(r: SectionRef, status: string) {
