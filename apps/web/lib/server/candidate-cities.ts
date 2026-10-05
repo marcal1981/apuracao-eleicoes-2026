@@ -12,6 +12,8 @@ import {
   raceKey,
   type OfficeKey,
 } from "@apuracao/core";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import type { Ingestor } from "./ingestor";
 import type { MunicipalTracker } from "./municipal";
 
@@ -30,6 +32,8 @@ export interface CandidateCitiesSnapshot {
   updatedAt: string | null;
   citiesRead: number;
   citiesTotal: number;
+  /** Andamento da leitura em curso (para a barra de progresso). */
+  progress: { running: boolean; done: number; total: number; failures: number; lastError: string | null };
   candidates: {
     id: string;
     name: string;
@@ -54,7 +58,11 @@ export class CandidateCitiesTracker {
   private updatedAt: string | null = null;
   private running = false;
   private readonly startedAt = Date.now();
+  private progress = { running: false, done: 0, total: 0, failures: 0, lastError: null as string | null };
+  private readonly cacheFile: string;
+  private loaded: Promise<void>;
   readonly intervalMs: number;
+  readonly concurrency: number;
 
   constructor(
     private readonly ingestor: Ingestor,
@@ -64,6 +72,57 @@ export class CandidateCitiesTracker {
   ) {
     const mock = ingestor.config.source === "mock";
     this.intervalMs = Number(process.env.CANDIDATE_CITIES_POLL_MS) || (mock ? 10_000 : 180_000);
+    this.concurrency = Number(process.env.CANDIDATE_CITIES_CONCURRENCY) || 8;
+    this.cacheFile = path.join(ingestor.config.dataDir, "cities", `${office}-${uf}${mock ? "-mock" : ""}.json`);
+    this.loaded = this.loadCache();
+  }
+
+  /** Recupera do disco os votos por cidade já lidos, para não baixar tudo de novo ao reiniciar. */
+  private async loadCache() {
+    try {
+      const saved = JSON.parse(await fs.readFile(this.cacheFile, "utf8")) as {
+        queries?: string[];
+        updatedAt: string | null;
+        candidates: [string, { name: string; number: string }][];
+        cities: [string, Omit<CityState, "votes"> & { votes: [string, number][] }][];
+      };
+      this.updatedAt = saved.updatedAt;
+      for (const [id, info] of saved.candidates) this.candidates.set(id, info);
+      // Se a lista de destaques mudou, os arquivos precisam ser lidos de novo (sem ETag) para achar os novos nomes.
+      const sameQueries = JSON.stringify(saved.queries ?? []) === JSON.stringify(this.queries);
+      for (const [ibge, c] of saved.cities) {
+        const city: CityState = { ...c, votes: new Map(c.votes) };
+        if (!sameQueries) {
+          delete city.etag;
+          delete city.lastModified;
+        }
+        this.cities.set(ibge, city);
+      }
+    } catch {
+      // Sem cache ainda.
+    }
+  }
+
+  private async saveCache() {
+    const data = {
+      queries: this.queries,
+      updatedAt: this.updatedAt,
+      candidates: [...this.candidates],
+      cities: [...this.cities].map(([ibge, c]) => [ibge, { ...c, votes: [...c.votes] }]),
+    };
+    await fs.mkdir(path.dirname(this.cacheFile), { recursive: true });
+    await fs.writeFile(`${this.cacheFile}.tmp`, JSON.stringify(data), "utf8");
+    await fs.rename(`${this.cacheFile}.tmp`, this.cacheFile);
+  }
+
+  private notify() {
+    this.updatedAt = new Date().toISOString();
+    this.ingestor.emit("live", {
+      type: "municipal_update",
+      state: this.uf.toUpperCase(),
+      office: this.office,
+      timestamp: this.updatedAt,
+    });
   }
 
   private get queries() {
@@ -84,31 +143,59 @@ export class CandidateCitiesTracker {
     if (this.running || this.queries.length === 0) return;
     this.running = true;
     try {
-      await this.municipal.whenReady();
+      await Promise.all([this.municipal.whenReady(), this.loaded]);
       const mock = this.ingestor.config.source === "mock";
-      const list = this.municipal.municipalities().filter((m) => mock || m.tseCode);
+      // Primeiro as cidades ainda não lidas; depois as de mais votos (onde a apuração mais muda).
+      const list = this.municipal
+        .municipalities()
+        .filter((m) => mock || m.tseCode)
+        .sort((a, b) => {
+          const ca = this.cities.get(a.ibge);
+          const cb = this.cities.get(b.ibge);
+          if (!ca !== !cb) return ca ? 1 : -1;
+          return (cb?.valid ?? 0) - (ca?.valid ?? 0);
+        });
+      if (list.length === 0) {
+        this.progress.lastError = "Lista de municípios do TSE ainda não carregada (veja o mapa municipal em /status).";
+        return;
+      }
+      this.progress = { running: true, done: 0, total: list.length, failures: 0, lastError: null };
       let changed = false;
+      let sinceNotify = 0;
       const queue = [...list];
       const worker = async () => {
         for (let m = queue.shift(); m; m = queue.shift()) {
           try {
-            if (mock ? this.updateMock(m.ibge) : await this.updateFromTse(m.ibge, m.tseCode!)) changed = true;
-          } catch {
+            if (mock ? this.updateMock(m.ibge) : await this.updateFromTse(m.ibge, m.tseCode!)) {
+              changed = true;
+              sinceNotify++;
+            }
+          } catch (err) {
             // Um município com falha não interrompe o ciclo; tenta de novo no próximo.
+            this.progress.failures++;
+            this.progress.lastError = `${m.name}: ${err instanceof Error ? err.message : String(err)}`;
+          }
+          this.progress.done++;
+          // Atualiza a tela aos poucos, sem esperar as 645 cidades.
+          if (sinceNotify >= 25) {
+            sinceNotify = 0;
+            this.notify();
           }
         }
       };
-      await Promise.all(Array.from({ length: 6 }, worker));
+      await Promise.all(Array.from({ length: this.concurrency }, worker));
+      if (this.progress.failures > 0) {
+        this.ingestor.log(
+          "warn",
+          `Votos por cidade (${this.office} ${this.uf.toUpperCase()}): ${this.progress.failures} cidades com falha. Ex.: ${this.progress.lastError}`,
+        );
+      }
       if (changed) {
-        this.updatedAt = new Date().toISOString();
-        this.ingestor.emit("live", {
-          type: "municipal_update",
-          state: this.uf.toUpperCase(),
-          office: this.office,
-          timestamp: this.updatedAt,
-        });
+        this.notify();
+        await this.saveCache().catch(() => {});
       }
     } finally {
+      this.progress.running = false;
       this.running = false;
     }
   }
@@ -122,7 +209,8 @@ export class CandidateCitiesTracker {
       this.uf,
       tseCode,
     );
-    const res = await this.ingestor.httpGet(url, city);
+    // Arquivos municipais de deputado são grandes (todos os candidatos): mais tempo para baixar.
+    const res = await this.ingestor.httpGet(url, city, Number(process.env.CANDIDATE_CITIES_TIMEOUT_MS) || 60_000);
     if (res.kind !== "new") return false;
     const r = parseSimplifiedResult(JSON.parse(res.body), {
       office: this.office,
@@ -171,6 +259,7 @@ export class CandidateCitiesTracker {
       updatedAt: this.updatedAt,
       citiesRead: this.cities.size,
       citiesTotal: names.size,
+      progress: { ...this.progress },
       candidates: [...this.candidates].map(([id, info]) => {
         const cities: CandidateCityVotes[] = [];
         for (const [ibge, city] of this.cities) {

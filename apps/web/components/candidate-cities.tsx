@@ -16,6 +16,7 @@ interface Snapshot {
   updatedAt: string | null;
   citiesRead: number;
   citiesTotal: number;
+  progress: { running: boolean; done: number; total: number; failures: number; lastError: string | null };
   candidates: { id: string; name: string; number: string; total: number; cities: CityVotes[] }[];
 }
 interface Shapes {
@@ -57,6 +58,14 @@ export function CandidateCities({ uf, office, candidateId }: { uf: string; offic
     if (!shapes) fetch(`/maps/${uf}-municipios.json`).then((r) => r.json()).then(setShapes).catch(() => {});
   }, [open, load, shapes, uf]);
 
+  // Enquanto a leitura das cidades está em andamento, atualiza a cada 8 s mesmo sem aviso em tempo real.
+  const reading = !!data && (data.progress.running || !data.candidates.some((c) => c.id === candidateId));
+  useEffect(() => {
+    if (!open || !reading) return;
+    const id = setInterval(() => load().catch(() => {}), 8_000);
+    return () => clearInterval(id);
+  }, [open, reading, load]);
+
   useLive((event) => {
     if (!open || event.type !== "municipal_update" || event.office !== office) return;
     if (pending.current) return;
@@ -96,7 +105,12 @@ export function CandidateCities({ uf, office, candidateId }: { uf: string; offic
     URL.revokeObjectURL(url);
   };
 
-  if (unavailable) return null;
+  if (unavailable)
+    return (
+      <p className="mt-3 border-t border-border pt-3 text-xs text-muted">
+        Votos por cidade indisponíveis para esta disputa (só para Deputados de SP em destaque).
+      </p>
+    );
 
   const hovered = hover ? byIbge.get(hover) : undefined;
 
@@ -116,12 +130,10 @@ export function CandidateCities({ uf, office, candidateId }: { uf: string; offic
           {!data ? (
             <p className="text-sm text-muted">Carregando…</p>
           ) : !candidate ? (
-            <p className="text-sm text-muted">
-              Lendo os arquivos municipais do TSE ({data.citiesRead} de {data.citiesTotal} cidades). Os votos por cidade
-              aparecem em alguns minutos.
-            </p>
+            <ReadingProgress data={data} />
           ) : (
             <>
+              {data.progress.running && <ReadingProgress data={data} compact />}
               <p className="text-xs text-muted">
                 Votos em {withVotes} de {data.citiesTotal} cidades · soma {formatInt(candidate.total)} ·{" "}
                 {data.citiesRead < data.citiesTotal && `${data.citiesRead} cidades lidas até agora · `}
@@ -213,6 +225,36 @@ export function CandidateCities({ uf, office, candidateId }: { uf: string; offic
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Barra de progresso da leitura dos arquivos municipais do TSE. */
+function ReadingProgress({ data, compact = false }: { data: Snapshot; compact?: boolean }) {
+  const { running, done, total, failures, lastError } = data.progress;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  return (
+    <div className="space-y-1 text-xs text-muted">
+      {running ? (
+        <>
+          <div>
+            Lendo os arquivos das cidades no TSE: {done} de {total} ({pct}%)
+            {failures > 0 && ` · ${failures} com falha`}
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-border">
+            <div className="h-full bg-accent transition-[width]" style={{ width: `${pct}%` }} />
+          </div>
+        </>
+      ) : (
+        !compact && (
+          <div>
+            {data.citiesRead === 0
+              ? "Aguardando a primeira leitura das cidades (começa poucos segundos após iniciar o sistema)."
+              : "Candidato ainda não encontrado nos arquivos das cidades lidas."}
+          </div>
+        )
+      )}
+      {!compact && lastError && <div>Último problema: {lastError}</div>}
     </div>
   );
 }

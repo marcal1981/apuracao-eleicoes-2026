@@ -269,14 +269,18 @@ export class Ingestor extends EventEmitter {
     });
   }
 
-  async httpGet(url: string, cache?: { etag?: string; lastModified?: string }): Promise<FetchOutcome> {
+  async httpGet(
+    url: string,
+    cache?: { etag?: string; lastModified?: string },
+    timeoutMs = this.config.requestTimeoutMs,
+  ): Promise<FetchOutcome> {
     const delays = [1_000, 2_000, 4_000];
     for (let attempt = 0; ; attempt++) {
       try {
         const headers: Record<string, string> = { "user-agent": USER_AGENT, accept: "application/json" };
         if (cache?.etag) headers["if-none-match"] = cache.etag;
         if (cache?.lastModified) headers["if-modified-since"] = cache.lastModified;
-        const res = await fetch(url, { headers, signal: AbortSignal.timeout(this.config.requestTimeoutMs), cache: "no-store" });
+        const res = await fetch(url, { headers, signal: AbortSignal.timeout(timeoutMs), cache: "no-store" });
         if (res.status === 304) return { kind: "unchanged" };
         if (res.status === 404 || res.status === 403) return { kind: "not_published", status: res.status };
         if (!res.ok) throw new HttpError(res.status, `HTTP ${res.status} em ${url}`);
