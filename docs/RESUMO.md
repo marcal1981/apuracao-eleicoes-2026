@@ -230,3 +230,13 @@ Para colocar no ar rapidamente, o MVP simplificou a infraestrutura **sem abrir m
 - Menu do topo → **Abstenção SP** (`/abstencao`): eleitorado, comparecimento, abstenções e % de abstenção de cada um dos 645 municípios, com totais do estado, busca, ordenação e planilha.
 - Fonte: arquivo municipal de Governador de cada cidade (o comparecimento é o mesmo para todos os cargos). Consulta a cada 3 minutos (`ABSTENTION_POLL_MS`), com ETag e memória em disco.
 - API: `GET /api/v1/states/sp/abstention`. Planilha: `/api/v1/export/abstention?uf=sp` (também na página Arquivos).
+
+## Aba "Abstenção Vale"
+
+Página `/abstencao/vale-do-paraiba`: abstenção nas **39 cidades da Região Metropolitana do Vale do Paraíba e Litoral Norte**, agrupadas nas 5 sub-regiões (São José dos Campos, Taubaté, Guaratinguetá, Cruzeiro e Litoral Norte).
+
+- Totais da região (eleitorado, comparecimento, abstenção e %).
+- Tabela por sub-região — clique numa linha para filtrar as cidades dela.
+- Lista das cidades com a sub-região de cada uma, ordenável e com busca.
+- Planilha da região: `/api/v1/export/abstention?uf=sp&regiao=vale-do-paraiba` (também na página **Arquivos**).
+- A lista de cidades da região fica em `apps/web/lib/regions.ts` (fácil de incluir outras regiões).

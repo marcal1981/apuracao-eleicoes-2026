@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { getAbstentionTracker } from "@/lib/server/ingestor";
 import { csvResponse } from "@/lib/csv";
+import { REGIONS, subregionOf } from "@/lib/regions";
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +11,22 @@ export function GET(req: NextRequest) {
   const tracker = getAbstentionTracker(uf);
   if (!tracker) return new Response("Abstenção por município não disponível para esta UF", { status: 404 });
   const snap = tracker.getSnapshot();
-  return csvResponse(`abstencao-por-municipio-${uf.toLowerCase()}.csv`, [
-    ["Município", "Código IBGE", "Eleitorado", "Comparecimento", "Abstenção", "% abstenção", "% seções totalizadas"],
-    ...snap.cities
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
-      .map((c) => [c.name, c.ibge, c.electorate, c.turnout, c.abstention, c.abstentionPct, c.sectionsTotalizedPct]),
+  const region = REGIONS[req.nextUrl.searchParams.get("regiao") ?? ""];
+  const cities = snap.cities
+    .map((c) => ({ ...c, subregion: region ? subregionOf(region, c.name) : null }))
+    .filter((c) => !region || c.subregion)
+    .sort((a, b) => (a.subregion ?? "").localeCompare(b.subregion ?? "", "pt-BR") || a.name.localeCompare(b.name, "pt-BR"));
+  return csvResponse(`abstencao-por-municipio-${region ? region.slug : uf.toLowerCase()}.csv`, [
+    [...(region ? ["Sub-região"] : []), "Município", "Código IBGE", "Eleitorado", "Comparecimento", "Abstenção", "% abstenção", "% seções totalizadas"],
+    ...cities.map((c) => [
+      ...(region ? [c.subregion] : []),
+      c.name,
+      c.ibge,
+      c.electorate,
+      c.turnout,
+      c.abstention,
+      c.abstentionPct,
+      c.sectionsTotalizedPct,
+    ]),
   ]);
 }

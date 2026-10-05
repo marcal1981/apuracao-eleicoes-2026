@@ -114,10 +114,15 @@ export default function Arquivos() {
       </Card>
 
 
-      <Card title="Abstenção por município (SP)">
-        <a href="/api/v1/export/abstention?uf=sp" className={btn}>
-          Baixar planilha
-        </a>
+      <Card title="Abstenção por município">
+        <div className="flex flex-wrap gap-2">
+          <a href="/api/v1/export/abstention?uf=sp" className={btn}>
+            Estado de SP
+          </a>
+          <a href="/api/v1/export/abstention?uf=sp&regiao=vale-do-paraiba" className={btn}>
+            Vale do Paraíba e Litoral Norte
+          </a>
+        </div>
       </Card>
 
       <Card title="Registro de auditoria">
