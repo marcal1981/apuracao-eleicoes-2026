@@ -114,6 +114,12 @@ export default function Arquivos() {
       </Card>
 
 
+      <Card title="Abstenção por município (SP)">
+        <a href="/api/v1/export/abstention?uf=sp" className={btn}>
+          Baixar planilha
+        </a>
+      </Card>
+
       <Card title="Registro de auditoria">
         <div className="flex flex-wrap gap-2">
           <a href="/api/v1/files/audit" className={btn}>

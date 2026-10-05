@@ -225,3 +225,8 @@ Para colocar no ar rapidamente, o MVP simplificou a infraestrutura **sem abrir m
 - O sistema deixou de baixar 645 arquivos de cidade por minuto só para os mapas. A lista de municípios do TSE agora é lida uma única vez.
 - A biblioteca de gráficos (Recharts) foi retirada, e as páginas não buscam mais o histórico a cada atualização.
 - Continuam: resultados por cargo/UF, destaques, projeção de eleitos, votos por cidade dos destaques (com o mapa de votos do candidato), planilhas e arquivos.
+
+## Aba "Abstenção SP"
+- Menu do topo → **Abstenção SP** (`/abstencao`): eleitorado, comparecimento, abstenções e % de abstenção de cada um dos 645 municípios, com totais do estado, busca, ordenação e planilha.
+- Fonte: arquivo municipal de Governador de cada cidade (o comparecimento é o mesmo para todos os cargos). Consulta a cada 3 minutos (`ABSTENTION_POLL_MS`), com ETag e memória em disco.
+- API: `GET /api/v1/states/sp/abstention`. Planilha: `/api/v1/export/abstention?uf=sp` (também na página Arquivos).

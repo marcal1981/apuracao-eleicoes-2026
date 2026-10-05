@@ -23,6 +23,7 @@ import { Archive } from "./archive";
 import { loadConfig, type AppConfig } from "./config";
 import { MUNICIPAL_UFS, MunicipalityRegistry } from "./municipal";
 import { CandidateCitiesTracker } from "./candidate-cities";
+import { AbstentionTracker } from "./abstention";
 
 const HISTORY_LIMIT = 2_000;
 const AUDIT_LIMIT = 500;
@@ -421,6 +422,7 @@ export class Ingestor extends EventEmitter {
 
 const GLOBAL_KEY = Symbol.for("apuracao.ingestor");
 const CITIES_KEY = Symbol.for("apuracao.candidate-cities");
+const ABSTENTION_KEY = Symbol.for("apuracao.abstention");
 
 /** Instância única por processo; inicia a ingestão na primeira chamada (exceto durante o build). */
 export function getIngestor(): Ingestor {
@@ -439,9 +441,12 @@ export function getIngestor(): Ingestor {
       cityTrackers.set(key, new CandidateCitiesTracker(instance, municipal, f.office, f.scope));
     }
     g[CITIES_KEY] = cityTrackers;
+    const abstention = new Map([...registries].map(([uf, reg]) => [uf, new AbstentionTracker(instance!, reg, uf)]));
+    g[ABSTENTION_KEY] = abstention;
     if (process.env.NEXT_PHASE !== "phase-production-build" && process.env.INGESTION_DISABLED !== "true") {
       instance.start();
       for (const t of cityTrackers.values()) t.start();
+      for (const t of abstention.values()) t.start();
     }
   }
   return instance;
@@ -452,4 +457,10 @@ export function getCandidateCitiesTracker(office: string, uf: string): Candidate
   getIngestor();
   const trackers = (globalThis as unknown as Record<symbol, Map<string, CandidateCitiesTracker> | undefined>)[CITIES_KEY];
   return trackers?.get(`${office}:${uf.toLowerCase()}`);
+}
+
+export function getAbstentionTracker(uf: string): AbstentionTracker | undefined {
+  getIngestor();
+  const trackers = (globalThis as unknown as Record<symbol, Map<string, AbstentionTracker> | undefined>)[ABSTENTION_KEY];
+  return trackers?.get(uf.toLowerCase());
 }

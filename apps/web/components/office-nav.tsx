@@ -59,6 +59,15 @@ export function OfficeNav() {
           </Link>
         );
       })}
+      <Link
+        href="/abstencao"
+        aria-current={pathname.startsWith("/abstencao") ? "page" : undefined}
+        className={`whitespace-nowrap rounded-full border px-3 py-1 hover:border-accent hover:text-accent ${
+          pathname.startsWith("/abstencao") ? "border-accent text-accent" : "border-border"
+        }`}
+      >
+        Abstenção SP
+      </Link>
       {uf && (
         <Link
           href={pathname.startsWith("/eleicoes/2026/") ? pathname.replace(/\/[a-z]{2}$/, "") : "/eleicoes/2026/governador"}
