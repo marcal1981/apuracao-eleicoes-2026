@@ -358,19 +358,45 @@ export interface TseMunicipality {
   uf: string;
 }
 
-/** Lê a lista de municípios (formato: abr[] → mu[] com cd, cdi, nm). */
+/**
+ * Lê a lista de municípios. Formato esperado: abr[] → mu[] com cd (código TSE), cdi (IBGE) e nm (nome).
+ * A leitura é tolerante: procura, abaixo da UF pedida, qualquer objeto com código e nome de município.
+ */
 export function parseMunicipalityConfig(raw: unknown, uf?: string): TseMunicipality[] {
-  const r = obj(raw);
   const out: TseMunicipality[] = [];
-  for (const abr of arr(r?.abr)) {
-    const sigla = str(abr.cd).toUpperCase();
-    if (uf && sigla !== uf.toUpperCase()) continue;
-    for (const mu of arr(abr.mu)) {
-      const tseCode = str(mu.cd);
-      if (!tseCode) continue;
-      out.push({ tseCode, ibge: str(mu.cdi) || null, name: str(mu.nm), uf: sigla });
+  const seen = new Set<string>();
+  const wanted = uf?.toUpperCase();
+
+  const ufOf = (o: Record<string, unknown>) => {
+    const v = str(pick(o.cd, o.sg, o.uf, o.sigla)).toUpperCase();
+    return /^[A-Z]{2}$/.test(v) ? v : null;
+  };
+  const visit = (node: unknown, currentUf: string | null) => {
+    if (Array.isArray(node)) {
+      for (const item of node) visit(item, currentUf);
+      return;
     }
-  }
+    const o = obj(node);
+    if (!o) return;
+    const nodeUf = ufOf(o);
+    // Um objeto de UF tem lista de municípios dentro; um município tem código numérico e nome.
+    const children = [o.mu, o.municipios, o.m].find(Array.isArray);
+    if (nodeUf && children) {
+      if (!wanted || nodeUf === wanted) visit(children, nodeUf);
+      return;
+    }
+    const code = str(pick(o.cd, o.cdmun, o.codigo));
+    const name = str(pick(o.nm, o.nome, o.ds));
+    if (currentUf && /^\d{3,7}$/.test(code) && name) {
+      if (!seen.has(code)) {
+        seen.add(code);
+        out.push({ tseCode: code, ibge: str(pick(o.cdi, o.cdibge, o.ibge)) || null, name, uf: currentUf });
+      }
+      return;
+    }
+    for (const value of Object.values(o)) if (typeof value === "object") visit(value, currentUf);
+  };
+  visit(raw, null);
   return out;
 }
 

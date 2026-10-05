@@ -53,6 +53,7 @@ export default function StatusPage() {
           </div>
         ))}
       </dl>
+      <CityDiagnostics />
       <h2 className="text-lg font-semibold">Registro de auditoria</h2>
       <ol className="space-y-1 rounded-xl border border-border bg-surface p-3 font-mono text-xs">
         {data.audit.map((e, i) => (
@@ -62,6 +63,53 @@ export default function StatusPage() {
           </li>
         ))}
       </ol>
+    </section>
+  );
+}
+
+/** Testa ao vivo a leitura dos votos por cidade no TSE e mostra o resultado de cada etapa. */
+function CityDiagnostics() {
+  const [office, setOffice] = useState("deputado-federal");
+  const [result, setResult] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+
+  const run = async () => {
+    setRunning(true);
+    setResult(null);
+    try {
+      const r = await fetch(`/api/v1/diagnostico/cidades?office=${office}&uf=sp`, { cache: "no-store" });
+      setResult(JSON.stringify(await r.json(), null, 2));
+    } catch (err) {
+      setResult(String(err));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <section id="cidades" className="space-y-2 rounded-xl border border-border bg-surface p-4">
+      <h2 className="text-lg font-semibold">Diagnóstico dos votos por cidade</h2>
+      <p className="text-xs text-muted">
+        Testa no TSE a lista de municípios e o arquivo da capital, e verifica se os candidatos em destaque aparecem. Pode
+        levar até 1 minuto.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <select value={office} onChange={(e) => setOffice(e.target.value)} className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm">
+          <option value="deputado-federal">Deputado Federal SP</option>
+          <option value="deputado-estadual">Deputado Estadual SP</option>
+        </select>
+        <button
+          type="button"
+          onClick={run}
+          disabled={running}
+          className="rounded-lg border border-border px-3 py-1.5 text-sm font-semibold hover:border-accent hover:text-accent disabled:opacity-50"
+        >
+          {running ? "Testando…" : "Testar agora"}
+        </button>
+      </div>
+      {result && (
+        <pre className="max-h-[60vh] overflow-auto rounded-lg border border-border p-3 text-xs">{result}</pre>
+      )}
     </section>
   );
 }

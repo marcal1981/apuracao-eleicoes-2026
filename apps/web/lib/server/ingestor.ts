@@ -27,7 +27,7 @@ import { CandidateCitiesTracker } from "./candidate-cities";
 const HISTORY_LIMIT = 2_000;
 const AUDIT_LIMIT = 500;
 // O TSE recusa clientes sem User-Agent de navegador.
-const USER_AGENT =
+export const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36 apuracao-eleicoes-2026";
 
 interface RaceState {

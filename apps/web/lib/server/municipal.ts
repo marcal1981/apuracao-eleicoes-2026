@@ -23,6 +23,8 @@ export class MunicipalityRegistry {
   private readonly ready: Promise<void>;
   private matching: Promise<boolean> | null = null;
   private matched = false;
+  /** Motivo da última falha ao obter a lista do TSE (exibido na tela e no diagnóstico). */
+  lastError: string | null = null;
 
   constructor(
     private readonly ingestor: Ingestor,
@@ -49,8 +51,16 @@ export class MunicipalityRegistry {
   private async matchTseMunicipalities(): Promise<boolean> {
     const code = electionCodeFor(this.ingestor.config.electionCodes, "governador");
     const url = municipalityConfigUrl(this.ingestor.config.endpoint, code);
-    const res = await this.ingestor.httpGet(url).catch(() => null);
-    if (res?.kind !== "new") return false;
+    // A lista cobre todos os municípios do país: arquivo grande, mais tempo para baixar.
+    const res = await this.ingestor.httpGet(url, undefined, 60_000).catch((err: unknown) => {
+      this.lastError = `Lista de municípios (${url}): ${err instanceof Error ? err.message : String(err)}`;
+      return null;
+    });
+    if (!res) return false;
+    if (res.kind !== "new") {
+      this.lastError = `Lista de municípios não disponível no TSE (${url}${res.kind === "not_published" ? `, HTTP ${res.status}` : ""})`;
+      return false;
+    }
     const list = parseMunicipalityConfig(JSON.parse(res.body), this.uf);
     const byName = new Map([...this.entries.values()].map((e) => [normalizePlaceName(e.name), e]));
     let matched = 0;
@@ -67,6 +77,7 @@ export class MunicipalityRegistry {
       `Municípios ${this.uf.toUpperCase()}: ${matched} de ${this.entries.size} associados à lista do TSE` +
         (unmatched.length ? ` (sem correspondência: ${unmatched.slice(0, 5).join(", ")})` : ""),
     );
+    if (matched === 0) this.lastError = `Lista de municípios lida, mas nenhum município de ${this.uf.toUpperCase()} encontrado (${url})`;
     return matched > 0;
   }
 

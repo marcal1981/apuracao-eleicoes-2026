@@ -160,7 +160,7 @@ function FeaturedCard({
       </dl>
 
       {race.office.startsWith("deputado") && race.scope !== "br" && (
-        <CandidateCities uf={race.scope} office={race.office} candidateId={c.id} />
+        <CandidateCities uf={race.scope} office={race.office} candidateId={c.id} candidateNumber={c.number} />
       )}
       {race.office.startsWith("deputado") && !c.elected && (
         <p className="mt-2 text-[11px] text-muted">

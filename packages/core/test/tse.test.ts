@@ -315,3 +315,18 @@ describe("candidatos em destaque", () => {
     expect(matchesCandidate({ name: "EDUARDO CURY", number: "1" }, "EDUARDO SIVINSK|DUDU SIVINSK")).toBe(false);
   });
 });
+
+describe("lista de municípios (formatos alternativos)", () => {
+  it("aceita nomes de campos diferentes e UF aninhada", async () => {
+    const { parseMunicipalityConfig } = await import("../src");
+    const raw = {
+      dg: "04/10/2026",
+      abr: [
+        { sg: "SP", ds: "SÃO PAULO", municipios: [{ codigo: "71072", cdibge: "3550308", nome: "SÃO PAULO" }] },
+        { cd: "RJ", mu: [{ cd: "60011", nm: "RIO DE JANEIRO" }] },
+      ],
+    };
+    expect(parseMunicipalityConfig(raw, "SP")).toEqual([{ tseCode: "71072", ibge: "3550308", name: "SÃO PAULO", uf: "SP" }]);
+    expect(parseMunicipalityConfig(raw).map((m) => m.uf)).toEqual(["SP", "RJ"]);
+  });
+});

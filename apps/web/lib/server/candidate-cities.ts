@@ -134,7 +134,8 @@ export class CandidateCitiesTracker {
       await this.runCycle().catch((err) =>
         this.ingestor.log("error", `Votos por cidade (${this.office} ${this.uf.toUpperCase()}): ${String(err)}`),
       );
-      setTimeout(tick, this.intervalMs);
+      // Enquanto a lista de municípios não estiver pronta, tenta de novo logo.
+      setTimeout(tick, this.cities.size === 0 && this.progress.total === 0 ? 30_000 : this.intervalMs);
     };
     setTimeout(tick, 5_000);
   }
@@ -145,7 +146,7 @@ export class CandidateCitiesTracker {
     try {
       await this.loaded;
       if (!(await this.municipal.ensureTseCodes())) {
-        this.progress.lastError = "Lista de municípios do TSE ainda não disponível; nova tentativa no próximo ciclo.";
+        this.progress.lastError = `${this.municipal.lastError ?? "Lista de municípios do TSE ainda não disponível"} — nova tentativa em 30 s.`;
         return;
       }
       const mock = this.ingestor.config.source === "mock";
@@ -215,6 +216,7 @@ export class CandidateCitiesTracker {
     );
     // Arquivos municipais de deputado são grandes (todos os candidatos): mais tempo para baixar.
     const res = await this.ingestor.httpGet(url, city, Number(process.env.CANDIDATE_CITIES_TIMEOUT_MS) || 60_000);
+    if (res.kind === "not_published") throw new Error(`arquivo não encontrado no TSE (HTTP ${res.status}): ${url}`);
     if (res.kind !== "new") return false;
     const r = parseSimplifiedResult(JSON.parse(res.body), {
       office: this.office,
@@ -253,6 +255,15 @@ export class CandidateCitiesTracker {
     }
     this.cities.set(ibge, city);
     return true;
+  }
+
+  /** Para o diagnóstico: cadastro de municípios e nomes procurados. */
+  get registry() {
+    return this.municipal;
+  }
+
+  get featuredQueries() {
+    return this.queries;
   }
 
   getSnapshot(): CandidateCitiesSnapshot {

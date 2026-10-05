@@ -36,7 +36,17 @@ const RATIO_BINS = [
 const PAGE = 20;
 
 /** Votos de um candidato em destaque em cada município: mapa, lista e planilha (CSV). */
-export function CandidateCities({ uf, office, candidateId }: { uf: string; office: string; candidateId: string }) {
+export function CandidateCities({
+  uf,
+  office,
+  candidateId,
+  candidateNumber,
+}: {
+  uf: string;
+  office: string;
+  candidateId: string;
+  candidateNumber: string;
+}) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<Snapshot | null>(null);
   const [unavailable, setUnavailable] = useState(false);
@@ -59,7 +69,10 @@ export function CandidateCities({ uf, office, candidateId }: { uf: string; offic
   }, [open, load, shapes, uf]);
 
   // Enquanto a leitura das cidades está em andamento, atualiza a cada 8 s mesmo sem aviso em tempo real.
-  const reading = !!data && (data.progress.running || !data.candidates.some((c) => c.id === candidateId));
+  const reading =
+    !!data &&
+    (data.progress.running ||
+      !data.candidates.some((c) => c.id === candidateId || (!!candidateNumber && c.number === candidateNumber)));
   useEffect(() => {
     if (!open || !reading) return;
     const id = setInterval(() => load().catch(() => {}), 8_000);
@@ -75,7 +88,7 @@ export function CandidateCities({ uf, office, candidateId }: { uf: string; offic
     }, 1500);
   });
 
-  const candidate = data?.candidates.find((c) => c.id === candidateId);
+  const candidate = data?.candidates.find((c) => c.id === candidateId || (!!candidateNumber && c.number === candidateNumber));
   const byIbge = useMemo(() => new Map(candidate?.cities.map((c) => [c.ibge, c])), [candidate]);
   const max = candidate?.cities[0]?.votes ?? 0;
   const withVotes = candidate?.cities.filter((c) => c.votes > 0).length ?? 0;
@@ -255,6 +268,11 @@ function ReadingProgress({ data, compact = false }: { data: Snapshot; compact?: 
         )
       )}
       {!compact && lastError && <div>Último problema: {lastError}</div>}
+      {!compact && (
+        <a href="/status#cidades" className="text-accent underline">
+          Diagnosticar a leitura das cidades
+        </a>
+      )}
     </div>
   );
 }
