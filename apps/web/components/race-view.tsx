@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { OFFICES, formatDateTimeBrasilia, formatInt, formatPct, formatTimeBrasilia, type OfficeKey, type Snapshot } from "@apuracao/core";
+import { OFFICES, formatDateTimeBrasilia, formatInt, formatPct, formatTimeBrasilia, type OfficeKey } from "@apuracao/core";
 import type { PublishedRace } from "@/lib/api-types";
 import { useLive } from "./use-live";
 import { MajoritarianTable } from "./majoritarian-table";
 import { ProportionalTable } from "./proportional-table";
-import { EvolutionChart } from "./evolution-chart";
 import { StatusBadge } from "./status-badge";
 import { FeaturedCandidates, usePinned } from "./featured-candidates";
 
@@ -17,24 +16,18 @@ interface Props {
   raceKey: string;
   title: string;
   initial: PublishedRace | null;
-  initialHistory: Snapshot[];
   /** Candidatos fixados pela configuração do servidor (nome ou #número). */
   featuredQueries?: string[];
 }
 
-export function RaceView({ office, scope, round, raceKey, title, initial, initialHistory, featuredQueries = [] }: Props) {
+export function RaceView({ office, scope, round, raceKey, title, initial, featuredQueries = [] }: Props) {
   const { pinned, toggle } = usePinned(raceKey);
   const [race, setRace] = useState(initial);
-  const [history, setHistory] = useState(initialHistory);
   const query = `office=${office}&state=${scope.toUpperCase()}&round=${round}`;
 
   const refresh = useCallback(async () => {
-    const [r, h] = await Promise.all([
-      fetch(`/api/v1/results?${query}`, { cache: "no-store" }),
-      fetch(`/api/v1/results/history?${query}`, { cache: "no-store" }),
-    ]);
+    const r = await fetch(`/api/v1/results?${query}`, { cache: "no-store" });
     if (r.ok) setRace((await r.json()) as PublishedRace);
-    if (h.ok) setHistory(((await h.json()) as { snapshots: Snapshot[] }).snapshots);
   }, [query]);
 
   const connection = useLive((event) => {
@@ -86,7 +79,6 @@ export function RaceView({ office, scope, round, raceKey, title, initial, initia
           )}
           <FeaturedCandidates
             race={race}
-            history={history}
             queries={featuredQueries}
             pinned={pinned}
             onUnpin={toggle}
@@ -97,7 +89,6 @@ export function RaceView({ office, scope, round, raceKey, title, initial, initia
           ) : (
             <ProportionalTable race={race} pinned={pinned} onTogglePin={toggle} />
           )}
-          {history.length > 1 && <EvolutionChart race={race} history={history} />}
           <SourceNote race={race} />
         </>
       )}

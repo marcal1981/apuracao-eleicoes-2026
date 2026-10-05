@@ -17,7 +17,7 @@ Plataforma independente para acompanhar a apuração das Eleições 2026 a parti
 
 ### Integridade e auditoria
 - Cada arquivo recebido do TSE é **guardado na forma original**, com impressão digital **SHA-256** e horário de recebimento, e nunca é sobrescrito.
-- **Histórico de snapshots** de cada atualização: é ele que alimenta o gráfico de evolução e a variação de posição.
+- **Histórico de snapshots** de cada atualização: guardado para auditoria.
 - **Trilha de auditoria** com downloads, erros, novas tentativas e publicações.
 - Ao reiniciar, o sistema recarrega o último resultado e o histórico do disco.
 - **Nenhum voto pode ser editado manualmente.**
@@ -41,21 +41,12 @@ Plataforma independente para acompanhar a apuração das Eleições 2026 a parti
 **Em cada disputa:**
 - **Indicadores:** seções totalizadas (com barra de progresso), comparecimento, abstenção, votos válidos, brancos, nulos e eleitorado.
 - **Ranking:** posição, votos, %, subida/descida de posição (↑ ↓) e diferença para o candidato anterior.
-- **Gráfico** da evolução do percentual dos 5 primeiros colocados.
 - **Origem dos dados:** arquivo oficial, hash e horários de recebimento e publicação.
 
 **Regras de neutralidade e correção:**
 - **Líder ≠ Eleito.** "Eleito" e "2º turno" só aparecem quando o TSE informa oficialmente.
 - **Deputados:** a ordem por votos **não** define os eleitos. Cadeiras por partido/federação e lista de eleitos seguem apenas a situação oficial. A tela tem busca e filtro "somente eleitos".
-- O gráfico usa uma paleta neutra, sem cores de partidos.
 - **Contingência:** se o TSE ficar instável, a página mantém o último dado oficial e avisa: *"Dados temporariamente sem atualização. Última atualização oficial recebida às HH:MM:SS"*.
-
-### Mapas da apuração
-- **Mapa do Brasil** (página inicial, Presidente e escolha de estado): cada UF é pintada pelo percentual de seções totalizadas do cargo escolhido. Clicar num estado abre os resultados dele.
-- **Mapa municipal de SP** (páginas de Governador, Senador, Dep. Federal e Dep. Estadual de SP): os 645 municípios coloridos pelo andamento da totalização, com busca por município, zoom e contagem de concluídos, em apuração e aguardando.
-  - A urna é totalizada com todos os cargos de uma vez, então o sistema lê o arquivo municipal de Governador (o menor) e o mesmo andamento vale para Senador e Deputados.
-  - Lista de municípios do TSE: `…/6259/config/mun-e006259-cm.json`. Arquivo de cada cidade: `…/dados/sp/sp{codigo}-c0003-e006259-u.json`. Atualização a cada 60 s (`MUNICIPAL_POLL_MS`).
-  - Desenho das cidades: malha do IBGE (CC0), gerada com `node scripts/build-municipal-map.mjs sp`. Para outra UF, gere o arquivo e inclua a sigla em `MUNICIPAL_UFS` (ex.: `sp,rj`).
 
 ### Projeção de eleitos (Deputados)
 - Com os votos apurados até o momento, a plataforma calcula a distribuição de cadeiras pelas regras do Código Eleitoral:
@@ -92,7 +83,6 @@ Plataforma independente para acompanhar a apuração das Eleições 2026 a parti
 | `GET /races?office=governador` | Resumo de todas as disputas |
 | `GET /offices` | Cargos e UFs |
 | `GET /live` | Eventos em tempo real (SSE) |
-| `GET /states/sp/municipalities` | Andamento da totalização por município |
 | `GET /health` e `GET /status` | Saúde do sistema, ingestão e auditoria |
 
 As respostas têm cache curto para CDN (`s-maxage`), o que protege o servidor nos picos de acesso.
@@ -115,7 +105,6 @@ As respostas têm cache curto para CDN (`s-maxage`), o que protege o servidor no
 
 - **Next.js 16 + React 19 + TypeScript**: páginas, API e SSE num único serviço.
 - **Tailwind CSS 4**: visual com tema claro e escuro automático.
-- **Recharts**: gráfico de evolução.
 - **Vitest**: testes.
 - **Monorepo npm workspaces**: `apps/web` e `packages/core`.
 
@@ -127,7 +116,7 @@ As respostas têm cache curto para CDN (`s-maxage`), o que protege o servidor no
 apuracao-eleicoes-2026/
 ├── apps/web/                 Site + API + tempo real
 │   ├── app/                  Páginas e rotas /api/v1
-│   ├── components/           Ranking, deputados, gráfico, indicadores
+│   ├── components/           Ranking, deputados, destaques, votos por cidade
 │   ├── lib/server/           Ingestor do TSE, configuração, arquivamento
 │   └── instrumentation.ts    Liga a ingestão quando o servidor sobe
 ├── packages/core/            Regras de domínio (sem dependência do site)
@@ -228,3 +217,11 @@ Para colocar no ar rapidamente, o MVP simplificou a infraestrutura **sem abrir m
 5. Páginas de candidato e de partido, e histórico de eleições anteriores.
 6. "Confira a urna" (Boletim de Urna), painel `/admin` e alertas.
 7. Testes de carga e monitoramento (Sentry, uptime).
+
+---
+
+## Atualização: simplificação (05/10)
+- Removidos os mapas de apuração (Brasil por estado e SP por município) e os gráficos de evolução.
+- O sistema deixou de baixar 645 arquivos de cidade por minuto só para os mapas. A lista de municípios do TSE agora é lida uma única vez.
+- A biblioteca de gráficos (Recharts) foi retirada, e as páginas não buscam mais o histórico a cada atualização.
+- Continuam: resultados por cargo/UF, destaques, projeção de eleitos, votos por cidade dos destaques (com o mapa de votos do candidato), planilhas e arquivos.

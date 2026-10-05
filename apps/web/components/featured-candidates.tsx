@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatInt, formatPct, matchesCandidate, type CandidateResult, type Snapshot } from "@apuracao/core";
+import { formatInt, formatPct, matchesCandidate, type CandidateResult } from "@apuracao/core";
 import type { PublishedRace } from "@/lib/api-types";
 import { CandidateTag, ElectedLine, PositionChange } from "./status-badge";
 import { CandidateCities } from "./candidate-cities";
@@ -38,7 +38,6 @@ export function usePinned(raceKey: string) {
 
 interface Props {
   race: PublishedRace;
-  history: Snapshot[];
   /** Destaques definidos na configuração (nome ou #número). */
   queries: string[];
   /** Ids fixados por quem está vendo. */
@@ -47,7 +46,7 @@ interface Props {
 }
 
 /** Cartões fixados no topo com a votação dos candidatos em destaque. */
-export function FeaturedCandidates({ race, history, queries, pinned, onUnpin }: Props) {
+export function FeaturedCandidates({ race, queries, pinned, onUnpin }: Props) {
   const fromConfig = useMemo(
     () => race.candidates.filter((c) => queries.some((q) => matchesCandidate(c, q))),
     [race.candidates, queries],
@@ -64,7 +63,6 @@ export function FeaturedCandidates({ race, history, queries, pinned, onUnpin }: 
           key={c.id}
           c={c}
           race={race}
-          history={history}
           onUnpin={fromConfig.includes(c) ? undefined : () => onUnpin(c.id)}
         />
       ))}
@@ -80,17 +78,12 @@ export function FeaturedCandidates({ race, history, queries, pinned, onUnpin }: 
 function FeaturedCard({
   c,
   race,
-  history,
   onUnpin,
 }: {
   c: CandidateResult;
   race: PublishedRace;
-  history: Snapshot[];
   onUnpin?: () => void;
 }) {
-  const series = history
-    .map((s) => s.candidates.find((x) => x.id === c.id))
-    .filter((x): x is NonNullable<typeof x> => !!x);
   const above = race.candidates[c.position - 2];
   const below = race.candidates[c.position];
 
@@ -166,7 +159,6 @@ function FeaturedCard({
         </div>
       </dl>
 
-      {series.length > 1 && <Sparkline values={series.map((s) => s.votes)} />}
       {race.office.startsWith("deputado") && race.scope !== "br" && (
         <CandidateCities uf={race.scope} office={race.office} candidateId={c.id} />
       )}
@@ -178,21 +170,5 @@ function FeaturedCard({
         </p>
       )}
     </article>
-  );
-}
-
-/** Evolução da votação ao longo das atualizações recebidas. */
-function Sparkline({ values }: { values: number[] }) {
-  const w = 300;
-  const h = 40;
-  const max = Math.max(...values, 1);
-  const points = values.map((v, i) => `${(i / (values.length - 1)) * w},${h - (v / max) * (h - 4) - 2}`).join(" ");
-  return (
-    <div className="mt-3">
-      <div className="text-xs text-muted">Evolução dos votos</div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="h-10 w-full" preserveAspectRatio="none" aria-hidden>
-        <polyline points={points} fill="none" stroke="var(--accent)" strokeWidth={2} vectorEffect="non-scaling-stroke" />
-      </svg>
-    </div>
   );
 }

@@ -113,11 +113,6 @@ export default function Arquivos() {
         <p className="mt-2 text-xs text-muted">Uma linha por candidato e cidade (645 cidades de SP).</p>
       </Card>
 
-      <Card title="Andamento da apuração por município (SP)">
-        <a href="/api/v1/export/municipalities?uf=sp" className={btn}>
-          Baixar planilha
-        </a>
-      </Card>
 
       <Card title="Registro de auditoria">
         <div className="flex flex-wrap gap-2">

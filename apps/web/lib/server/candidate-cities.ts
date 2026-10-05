@@ -15,7 +15,7 @@ import {
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { Ingestor } from "./ingestor";
-import type { MunicipalTracker } from "./municipal";
+import type { MunicipalityRegistry } from "./municipal";
 
 export interface CandidateCityVotes {
   ibge: string;
@@ -66,7 +66,7 @@ export class CandidateCitiesTracker {
 
   constructor(
     private readonly ingestor: Ingestor,
-    private readonly municipal: MunicipalTracker,
+    private readonly municipal: MunicipalityRegistry,
     readonly office: OfficeKey,
     readonly uf: string,
   ) {
@@ -143,7 +143,11 @@ export class CandidateCitiesTracker {
     if (this.running || this.queries.length === 0) return;
     this.running = true;
     try {
-      await Promise.all([this.municipal.whenReady(), this.loaded]);
+      await this.loaded;
+      if (!(await this.municipal.ensureTseCodes())) {
+        this.progress.lastError = "Lista de municípios do TSE ainda não disponível; nova tentativa no próximo ciclo.";
+        return;
+      }
       const mock = this.ingestor.config.source === "mock";
       // Primeiro as cidades ainda não lidas; depois as de mais votos (onde a apuração mais muda).
       const list = this.municipal
@@ -156,7 +160,7 @@ export class CandidateCitiesTracker {
           return (cb?.valid ?? 0) - (ca?.valid ?? 0);
         });
       if (list.length === 0) {
-        this.progress.lastError = "Lista de municípios do TSE ainda não carregada (veja o mapa municipal em /status).";
+        this.progress.lastError = "Nenhum município associado à lista do TSE.";
         return;
       }
       this.progress = { running: true, done: 0, total: list.length, failures: 0, lastError: null };

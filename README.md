@@ -15,7 +15,6 @@ Plataforma independente de acompanhamento e análise dos **dados oficiais** da a
   - Linha de corte das vagas (2 no Senado).
   - Diferença entre **Líder** e **Eleito**: "eleito" só aparece quando o TSE informa.
   - Deputados: busca, filtro de eleitos e cadeiras por partido/federação, conforme a situação oficial.
-  - Gráfico de evolução.
 - **Contingência**: se o TSE parar de responder, o sistema mantém o último dado oficial e avisa que está desatualizado.
 - **Transparência**: páginas `/como-funciona` e `/status`, com o status da ingestão e o log de auditoria.
 - **Modo simulação** (`TSE_SOURCE=mock`): candidatos fictícios, para desenvolvimento, testes e ensaio de carga.
@@ -59,7 +58,7 @@ Todas as variáveis estão em [`.env.example`](.env.example). As mais importante
 | GET | `/api/v1/results/history?office=…&state=…` | Snapshots da apuração |
 | GET | `/api/v1/races?office=governador` | Resumo de todas as disputas |
 | GET | `/api/v1/offices` | Cargos e UFs |
-| GET | `/api/v1/states/sp/municipalities` | Andamento da totalização por município (mapa municipal) |
+| GET | `/api/v1/states/sp/candidate-cities?office=…` | Votos por cidade dos candidatos em destaque |
 | GET | `/api/v1/live` | SSE com `result_update` e `status` |
 | GET | `/api/v1/health`, `/api/v1/status` | Saúde, ingestão e auditoria |
 

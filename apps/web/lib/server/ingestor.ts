@@ -21,7 +21,7 @@ import {
 import type { AuditEvent, IngestionStatus, LiveEvent, PublishedRace, RaceSummary } from "../api-types";
 import { Archive } from "./archive";
 import { loadConfig, type AppConfig } from "./config";
-import { MUNICIPAL_UFS, MunicipalTracker } from "./municipal";
+import { MUNICIPAL_UFS, MunicipalityRegistry } from "./municipal";
 import { CandidateCitiesTracker } from "./candidate-cities";
 
 const HISTORY_LIMIT = 2_000;
@@ -420,7 +420,6 @@ export class Ingestor extends EventEmitter {
 }
 
 const GLOBAL_KEY = Symbol.for("apuracao.ingestor");
-const MUNICIPAL_KEY = Symbol.for("apuracao.municipal");
 const CITIES_KEY = Symbol.for("apuracao.candidate-cities");
 
 /** Instância única por processo; inicia a ingestão na primeira chamada (exceto durante o build). */
@@ -430,12 +429,11 @@ export function getIngestor(): Ingestor {
   if (!instance) {
     instance = new Ingestor();
     g[GLOBAL_KEY] = instance;
-    const trackers = new Map(MUNICIPAL_UFS.map((uf) => [uf, new MunicipalTracker(instance!, uf)]));
-    g[MUNICIPAL_KEY] = trackers;
+    const registries = new Map(MUNICIPAL_UFS.map((uf) => [uf, new MunicipalityRegistry(instance!, uf)]));
     // Votos por cidade: só para disputas proporcionais com candidatos em destaque e mapa municipal.
     const cityTrackers = new Map<string, CandidateCitiesTracker>();
     for (const f of instance.config.featured) {
-      const municipal = trackers.get(f.scope);
+      const municipal = registries.get(f.scope);
       const key = `${f.office}:${f.scope}`;
       if (!municipal || cityTrackers.has(key) || OFFICES[f.office].system !== "proporcional") continue;
       cityTrackers.set(key, new CandidateCitiesTracker(instance, municipal, f.office, f.scope));
@@ -443,18 +441,12 @@ export function getIngestor(): Ingestor {
     g[CITIES_KEY] = cityTrackers;
     if (process.env.NEXT_PHASE !== "phase-production-build" && process.env.INGESTION_DISABLED !== "true") {
       instance.start();
-      for (const t of trackers.values()) t.start();
       for (const t of cityTrackers.values()) t.start();
     }
   }
   return instance;
 }
 
-export function getMunicipalTracker(uf: string): MunicipalTracker | undefined {
-  getIngestor();
-  const trackers = (globalThis as unknown as Record<symbol, Map<string, MunicipalTracker> | undefined>)[MUNICIPAL_KEY];
-  return trackers?.get(uf.toLowerCase());
-}
 
 export function getCandidateCitiesTracker(office: string, uf: string): CandidateCitiesTracker | undefined {
   getIngestor();
