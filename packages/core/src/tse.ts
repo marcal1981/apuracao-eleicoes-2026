@@ -441,3 +441,40 @@ export function parseFeaturedCandidates(spec: string): FeaturedCandidate[] {
     .filter((p): p is [string, string, string] => p.length === 3 && p[0]! in OFFICES && !!p[1] && !!p[2])
     .map(([office, scope, query]) => ({ office: office as OfficeKey, scope: scope.toLowerCase(), query }));
 }
+
+export interface CandidateVotesExtract {
+  sectionsTotalizedPct: number;
+  valid: number;
+  candidates: { id: string; name: string; number: string; votes: number }[];
+}
+
+/**
+ * Leitura leve de um arquivo de resultado: devolve só os candidatos pedidos e os totais básicos,
+ * sem ordenar nem normalizar a lista inteira (usada nos arquivos municipais, que são grandes).
+ */
+export function extractCandidateVotes(
+  raw: unknown,
+  isWanted: (c: { name: string; number: string }) => boolean,
+): CandidateVotesExtract {
+  const r = obj(raw);
+  if (!r) throw new TseParseError("Arquivo vazio ou inválido");
+  const out: CandidateVotesExtract["candidates"] = [];
+  const take = (c: Record<string, unknown>) => {
+    const cand = { name: str(c.nmu) || str(c.nm), number: str(c.n) };
+    if (!isWanted(cand)) return;
+    out.push({ ...cand, id: str(c.sqcand) || cand.number, votes: parseTseNumber(c.vap) });
+  };
+  if (Array.isArray(r.carg)) {
+    for (const cargo of arr(r.carg))
+      for (const agr of arr(cargo.agr)) for (const par of arr(agr.par)) for (const c of arr(par.cand)) take(c);
+  } else if (Array.isArray(r.cand)) {
+    for (const c of arr(r.cand)) take(c);
+  } else {
+    throw new TseParseError("Arquivo sem lista de candidatos (carg/cand)");
+  }
+  return {
+    sectionsTotalizedPct: parseTseNumber(pick(obj(r.s)?.pst, r.pst)),
+    valid: parseTseNumber(pick(obj(r.v)?.vv, r.vv)),
+    candidates: out,
+  };
+}

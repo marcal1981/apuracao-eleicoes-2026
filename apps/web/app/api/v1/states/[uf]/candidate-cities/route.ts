@@ -10,5 +10,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ uf: 
   const office = req.nextUrl.searchParams.get("office") ?? "";
   const tracker = getCandidateCitiesTracker(office, uf);
   if (!tracker) return json({ error: "Sem candidatos em destaque com votação por cidade nesta disputa" }, { status: 404, maxAge: 60 });
-  return json(tracker.getSnapshot(), { maxAge: 15 });
+  try {
+    return json(tracker.getSnapshot(), { maxAge: 5 });
+  } catch (err) {
+    return json({ error: `Falha ao montar os votos por cidade: ${err instanceof Error ? err.message : String(err)}` }, { status: 500, maxAge: 0 });
+  }
 }

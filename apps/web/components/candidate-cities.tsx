@@ -56,10 +56,27 @@ export function CandidateCities({
   const [hover, setHover] = useState<string | null>(null);
   const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
   const load = useCallback(async () => {
-    const r = await fetch(`/api/v1/states/${uf}/candidate-cities?office=${office}`, { cache: "no-store" });
-    if (r.status === 404) return setUnavailable(true);
-    if (r.ok) setData((await r.json()) as Snapshot);
+    try {
+      const r = await fetch(`/api/v1/states/${uf}/candidate-cities?office=${office}`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (r.status === 404) return setUnavailable(true);
+      if (!r.ok) {
+        const body = (await r.json().catch(() => null)) as { error?: string } | null;
+        return setLoadError(body?.error ?? `O servidor respondeu com erro (HTTP ${r.status}).`);
+      }
+      setLoadError(null);
+      setData((await r.json()) as Snapshot);
+    } catch (err) {
+      setLoadError(
+        err instanceof DOMException && err.name === "TimeoutError"
+          ? "O servidor demorou para responder (ele pode estar lendo os arquivos das cidades). Tentando de novo…"
+          : "Não foi possível falar com o servidor. Confira se o npm run dev continua aberto.",
+      );
+    }
   }, [uf, office]);
 
   useEffect(() => {
@@ -70,9 +87,10 @@ export function CandidateCities({
 
   // Enquanto a leitura das cidades está em andamento, atualiza a cada 8 s mesmo sem aviso em tempo real.
   const reading =
-    !!data &&
+    (!data && !!loadError) ||
+    (!!data &&
     (data.progress.running ||
-      !data.candidates.some((c) => c.id === candidateId || (!!candidateNumber && c.number === candidateNumber)));
+      !data.candidates.some((c) => c.id === candidateId || (!!candidateNumber && c.number === candidateNumber))));
   useEffect(() => {
     if (!open || !reading) return;
     const id = setInterval(() => load().catch(() => {}), 8_000);
@@ -141,7 +159,14 @@ export function CandidateCities({
       {open && (
         <div className="mt-3 space-y-3">
           {!data ? (
-            <p className="text-sm text-muted">Carregando…</p>
+            <div className="space-y-2 text-sm text-muted">
+              <p>{loadError ?? "Carregando…"}</p>
+              {loadError && (
+                <button type="button" onClick={() => load()} className="rounded-lg border border-border px-3 py-1 hover:border-accent hover:text-accent">
+                  Tentar de novo
+                </button>
+              )}
+            </div>
           ) : !candidate ? (
             <ReadingProgress data={data} />
           ) : (

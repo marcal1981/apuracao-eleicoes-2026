@@ -8,7 +8,7 @@ import {
   electionCodeFor,
   matchesCandidate,
   municipalResultUrl,
-  parseSimplifiedResult,
+  extractCandidateVotes,
   raceKey,
   type OfficeKey,
 } from "@apuracao/core";
@@ -52,6 +52,8 @@ interface CityState {
   votes: Map<string, number>;
 }
 
+const CACHE_VERSION = 2;
+
 export class CandidateCitiesTracker {
   private readonly cities = new Map<string, CityState>();
   private readonly candidates = new Map<string, { name: string; number: string }>();
@@ -72,7 +74,7 @@ export class CandidateCitiesTracker {
   ) {
     const mock = ingestor.config.source === "mock";
     this.intervalMs = Number(process.env.CANDIDATE_CITIES_POLL_MS) || (mock ? 10_000 : 180_000);
-    this.concurrency = Number(process.env.CANDIDATE_CITIES_CONCURRENCY) || 8;
+    this.concurrency = Number(process.env.CANDIDATE_CITIES_CONCURRENCY) || 4;
     this.cacheFile = path.join(ingestor.config.dataDir, "cities", `${office}-${uf}${mock ? "-mock" : ""}.json`);
     this.loaded = this.loadCache();
   }
@@ -81,11 +83,13 @@ export class CandidateCitiesTracker {
   private async loadCache() {
     try {
       const saved = JSON.parse(await fs.readFile(this.cacheFile, "utf8")) as {
+        version?: number;
         queries?: string[];
         updatedAt: string | null;
         candidates: [string, { name: string; number: string }][];
         cities: [string, Omit<CityState, "votes"> & { votes: [string, number][] }][];
       };
+      if (saved.version !== CACHE_VERSION) return; // formato antigo: lê tudo de novo
       this.updatedAt = saved.updatedAt;
       for (const [id, info] of saved.candidates) this.candidates.set(id, info);
       // Se a lista de destaques mudou, os arquivos precisam ser lidos de novo (sem ETag) para achar os novos nomes.
@@ -105,6 +109,7 @@ export class CandidateCitiesTracker {
 
   private async saveCache() {
     const data = {
+      version: CACHE_VERSION,
       queries: this.queries,
       updatedAt: this.updatedAt,
       candidates: [...this.candidates],
@@ -181,6 +186,8 @@ export class CandidateCitiesTracker {
             this.progress.lastError = `${m.name}: ${err instanceof Error ? err.message : String(err)}`;
           }
           this.progress.done++;
+          // Devolve a vez ao servidor entre um arquivo e outro, para as páginas continuarem respondendo.
+          await new Promise((resolve) => setImmediate(resolve));
           // Atualiza a tela aos poucos, sem esperar as 645 cidades.
           if (sinceNotify >= 25) {
             sinceNotify = 0;
@@ -218,21 +225,17 @@ export class CandidateCitiesTracker {
     const res = await this.ingestor.httpGet(url, city, Number(process.env.CANDIDATE_CITIES_TIMEOUT_MS) || 60_000);
     if (res.kind === "not_published") throw new Error(`arquivo não encontrado no TSE (HTTP ${res.status}): ${url}`);
     if (res.kind !== "new") return false;
-    const r = parseSimplifiedResult(JSON.parse(res.body), {
-      office: this.office,
-      scope: this.uf,
-      round: this.ingestor.config.round,
-      skipProjection: true,
-    });
+    // Leitura leve: só os candidatos em destaque, sem processar a lista inteira.
+    const r = extractCandidateVotes(JSON.parse(res.body), (c) => this.queries.some((q) => matchesCandidate(c, q)));
     city.etag = res.etag;
     city.lastModified = res.lastModified;
     city.sectionsTotalizedPct = r.sectionsTotalizedPct;
-    city.valid = r.totals.valid;
+    city.valid = r.valid;
     city.votes = new Map();
+    // A chave é o número do candidato, que é o mesmo nos arquivos estadual e municipais.
     for (const c of r.candidates) {
-      if (!this.queries.some((q) => matchesCandidate(c, q))) continue;
-      city.votes.set(c.id, c.votes);
-      this.candidates.set(c.id, { name: c.name, number: c.number });
+      city.votes.set(c.number, c.votes);
+      this.candidates.set(c.number, { name: c.name, number: c.number });
     }
     this.cities.set(ibge, city);
     return true;
@@ -250,8 +253,8 @@ export class CandidateCitiesTracker {
     for (const c of race.candidates) {
       if (!this.queries.some((q) => matchesCandidate(c, q))) continue;
       const local = ((seed * (Number(c.number) || 1)) % 97) / 97;
-      city.votes.set(c.id, Math.round((c.votes / 645) * 2 * weight * local));
-      this.candidates.set(c.id, { name: c.name, number: c.number });
+      city.votes.set(c.number, Math.round((c.votes / 645) * 2 * weight * local));
+      this.candidates.set(c.number, { name: c.name, number: c.number });
     }
     this.cities.set(ibge, city);
     return true;

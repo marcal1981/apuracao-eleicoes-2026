@@ -330,3 +330,21 @@ describe("lista de municípios (formatos alternativos)", () => {
     expect(parseMunicipalityConfig(raw).map((m) => m.uf)).toEqual(["SP", "RJ"]);
   });
 });
+
+describe("extractCandidateVotes", () => {
+  it("lê só os candidatos pedidos, nos formatos 2026 e 2022", async () => {
+    const { extractCandidateVotes, matchesCandidate } = await import("../src");
+    const wanted = (c: { name: string; number: string }) => matchesCandidate(c, "LUCAS PAVANATO");
+    const f2026 = {
+      s: { pst: "100,00" },
+      v: { vv: "1.000" },
+      carg: [{ agr: [{ par: [{ cand: [{ n: "2222", nmu: "LUCAS PAVANATO", vap: "300" }, { n: "1", nmu: "OUTRO", vap: "9" }] }] }] }],
+    };
+    expect(extractCandidateVotes(f2026, wanted)).toEqual({
+      sectionsTotalizedPct: 100,
+      valid: 1000,
+      candidates: [{ id: "2222", name: "LUCAS PAVANATO", number: "2222", votes: 300 }],
+    });
+    expect(extractCandidateVotes({ pst: "50,00", vv: "10", cand: [{ sqcand: "9", n: "2222", nm: "LUCAS PAVANATO", vap: "5" }] }, wanted).candidates[0]?.id).toBe("9");
+  });
+});
