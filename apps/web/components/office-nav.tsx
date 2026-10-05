@@ -62,6 +62,7 @@ export function OfficeNav() {
       {[
         { href: "/abstencao", label: "Abstenção SP" },
         { href: "/abstencao/vale-do-paraiba", label: "Abstenção Vale" },
+        { href: "/abstencao/sao-jose-dos-campos", label: "Abstenção SJC" },
       ].map((tab) => {
         const active = pathname === tab.href;
         return (

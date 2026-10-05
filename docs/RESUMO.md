@@ -240,3 +240,15 @@ Página `/abstencao/vale-do-paraiba`: abstenção nas **39 cidades da Região Me
 - Lista das cidades com a sub-região de cada uma, ordenável e com busca.
 - Planilha da região: `/api/v1/export/abstention?uf=sp&regiao=vale-do-paraiba` (também na página **Arquivos**).
 - A lista de cidades da região fica em `apps/web/lib/regions.ts` (fácil de incluir outras regiões).
+
+## Aba "Abstenção SJC" (por seção eleitoral)
+
+Página `/abstencao/sao-jose-dos-campos`: abstenção em **cada seção eleitoral de São José dos Campos**.
+
+- Os números vêm dos **boletins de urna** que o TSE publica por seção (`arquivo-urna`): para cada seção, o arquivo auxiliar e a imagem do boletim (`.imgbu`), de onde saem eleitores aptos, comparecimento e faltosos.
+- Resumo por **zona eleitoral** (clique para filtrar), filtro por **local de votação** (pelo número do local), busca por seção, ordenação.
+- Seções não instaladas ou ainda sem boletim aparecem com a situação informada pelo TSE.
+- A leitura só começa quando a página é aberta pela primeira vez (cerca de 1.400 seções; leva alguns minutos). Boletim lido não muda mais e fica guardado em `data/cities/secoes-sao-jose-dos-campos.json`.
+- Planilha: `/api/v1/export/sections?cidade=sao-jose-dos-campos` (também na página **Arquivos**).
+- Outras cidades: `SECTION_CITIES=sp:São José dos Campos;sp:Taubaté` no `.env` (a página precisa ser criada como a de SJC).
+- No fim da página, "Exemplo do arquivo do TSE (diagnóstico)" mostra o que veio do TSE, caso o formato mude.

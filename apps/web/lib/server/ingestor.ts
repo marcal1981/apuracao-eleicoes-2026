@@ -24,6 +24,7 @@ import { loadConfig, type AppConfig } from "./config";
 import { MUNICIPAL_UFS, MunicipalityRegistry } from "./municipal";
 import { CandidateCitiesTracker } from "./candidate-cities";
 import { AbstentionTracker } from "./abstention";
+import { SECTION_CITIES, SectionAbstentionTracker } from "./sections";
 
 const HISTORY_LIMIT = 2_000;
 const AUDIT_LIMIT = 500;
@@ -423,6 +424,7 @@ export class Ingestor extends EventEmitter {
 const GLOBAL_KEY = Symbol.for("apuracao.ingestor");
 const CITIES_KEY = Symbol.for("apuracao.candidate-cities");
 const ABSTENTION_KEY = Symbol.for("apuracao.abstention");
+const SECTIONS_KEY = Symbol.for("apuracao.sections");
 
 /** Instância única por processo; inicia a ingestão na primeira chamada (exceto durante o build). */
 export function getIngestor(): Ingestor {
@@ -443,6 +445,13 @@ export function getIngestor(): Ingestor {
     g[CITIES_KEY] = cityTrackers;
     const abstention = new Map([...registries].map(([uf, reg]) => [uf, new AbstentionTracker(instance!, reg, uf)]));
     g[ABSTENTION_KEY] = abstention;
+    // Abstenção por seção: só começa a ler quando a página da cidade é aberta.
+    const sections = new Map<string, SectionAbstentionTracker>();
+    for (const c of SECTION_CITIES) {
+      const reg = registries.get(c.uf);
+      if (reg) sections.set(c.slug, new SectionAbstentionTracker(instance, reg, c.uf, c.city, c.slug));
+    }
+    g[SECTIONS_KEY] = sections;
     if (process.env.NEXT_PHASE !== "phase-production-build" && process.env.INGESTION_DISABLED !== "true") {
       instance.start();
       for (const t of cityTrackers.values()) t.start();
@@ -463,4 +472,10 @@ export function getAbstentionTracker(uf: string): AbstentionTracker | undefined 
   getIngestor();
   const trackers = (globalThis as unknown as Record<symbol, Map<string, AbstentionTracker> | undefined>)[ABSTENTION_KEY];
   return trackers?.get(uf.toLowerCase());
+}
+
+export function getSectionTracker(slug: string): SectionAbstentionTracker | undefined {
+  getIngestor();
+  const trackers = (globalThis as unknown as Record<symbol, Map<string, SectionAbstentionTracker> | undefined>)[SECTIONS_KEY];
+  return trackers?.get(slug.toLowerCase());
 }

@@ -4,3 +4,4 @@ export * from "./tse";
 export * from "./simulation";
 export * from "./format";
 export * from "./seats";
+export * from "./urna";
