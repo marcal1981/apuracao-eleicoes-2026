@@ -106,4 +106,23 @@ describe("arquivos de urna", () => {
     const envelope = seq(seq(str("20261004T191404"), tlv(0x82, [0x0c, 0x94])), en(2), tlv(0x04, bu));
     expect(parseBuDer(Uint8Array.from(envelope))).toEqual({ electorate: 412, turnout: 330, abstention: 82, place: null });
   });
+
+  it("usa a soma dos votos quando o campo de comparecimento não é o número de eleitores", () => {
+    const tlv = (tag: number, body: number[]) => {
+      const len = body.length < 128 ? [body.length] : [0x82, body.length >> 8, body.length & 255];
+      return [tag, ...len, ...body];
+    };
+    const int = (n: number) => tlv(0x02, n < 128 ? [n] : [n >> 8, n & 255]);
+    const en = (n: number) => tlv(0x0a, [n]);
+    const seq = (...items: number[][]) => tlv(0x30, items.flat());
+    const sig = tlv(0x04, [9, 9]);
+    const nominal = (votes: number, num: number) => seq(en(1), int(votes), seq(int(10), int(num)), sig);
+    const branco = (votes: number) => seq(en(2), int(votes), sig);
+    // Governador: 120 + 80 + 18 brancos + 12 nulos = 230 eleitores; Senador (2 votos por eleitor) soma 460.
+    const governador = seq(tlv(0x81, [3]), int(1), seq(nominal(120, 10), nominal(80, 45), branco(18), seq(en(3), int(12), sig)));
+    const senador = seq(tlv(0x81, [5]), int(2), seq(nominal(250, 101), nominal(200, 111), branco(10)));
+    const eleicao = seq(int(6259), int(280), seq(seq(en(1), int(5), seq(governador, senador))));
+    const bu = seq(seq(int(1)), en(2), seq(eleicao));
+    expect(parseBuDer(Uint8Array.from(seq(en(2), tlv(0x04, bu))))).toEqual({ electorate: 280, turnout: 230, abstention: 50, place: null });
+  });
 });

@@ -227,14 +227,35 @@ function asElectionResult(n: DerNode): { electorate: number; turnout: number } |
   const [id, aptos, list] = n.children ?? [];
   const electorate = derInt(aptos);
   if (!n.constructed || derInt(id) === null || electorate === null || !list?.constructed || !list.children?.length) return null;
-  let turnout: number | null = null;
+  let field = 0;
   for (const item of list.children) {
     const [tipo, comp, totals] = item.children ?? [];
     const t = derInt(comp);
     if (!item.constructed || derInt(tipo) === null || t === null || !totals?.constructed) return null;
-    turnout = Math.max(turnout ?? 0, t);
+    if (t <= electorate) field = Math.max(field, t);
   }
-  return turnout === null || turnout > electorate || electorate > 10_000 ? null : { electorate, turnout };
+  if (electorate > 10_000) return null;
+  // Comparecimento: cada eleitor deixa um voto (nominal, legenda, branco ou nulo) em cada cargo, então a soma
+  // dos votos de um cargo de vaga única é o comparecimento. Usa a maior soma que não passa do eleitorado
+  // (Senador com duas vagas soma o dobro e fica de fora). O campo qtdComparecimento serve de alternativa.
+  const votes = maxVoteSum(list, electorate);
+  return { electorate, turnout: Math.max(votes, field) };
+}
+
+/** Maior soma de votos (2º campo de cada item) entre as listas de votáveis dentro do nó, limitada ao eleitorado. */
+function maxVoteSum(node: DerNode, limit: number): number {
+  let best = 0;
+  const visit = (n: DerNode) => {
+    if (!n.children?.length) return;
+    // Uma lista de votáveis: todos os itens são estruturas cujo 2º campo é um número (a quantidade de votos).
+    if (n.children.every((c) => c.constructed && (c.children?.length ?? 0) >= 2 && derInt(c.children![1]) !== null && !c.children![1]!.constructed)) {
+      const sum = n.children.reduce((a, c) => a + derInt(c.children![1])!, 0);
+      if (sum <= limit) best = Math.max(best, sum);
+    }
+    for (const c of n.children) if (c.constructed) visit(c);
+  };
+  visit(node);
+  return best;
 }
 
 function findElectionResults(nodes: DerNode[], depth = 0): { electorate: number; turnout: number }[] {
@@ -269,7 +290,7 @@ export function parseBuDer(bytes: Uint8Array): BuSummary | null {
 }
 
 /** Resumo da estrutura do arquivo (para diagnóstico quando a leitura falha). */
-export function describeDer(bytes: Uint8Array, maxLines = 40): string {
+export function describeDer(bytes: Uint8Array, maxLines = 150): string {
   const lines: string[] = [];
   const walk = (nodes: DerNode[], indent: string) => {
     for (const n of nodes) {
