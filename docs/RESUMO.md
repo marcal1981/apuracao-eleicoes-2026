@@ -250,3 +250,7 @@ Página `/abstencao/sao-jose-dos-campos`: **mapa de São José dos Campos com a 
 - Cor da zona: da menor abstenção (amarelo) à maior (vermelho escuro). Clique numa zona (no mapa ou na tabela) para ver os números dela e os locais de votação com mais abstenção.
 - Planilhas: por zona `/api/v1/export/sections?cidade=sao-jose-dos-campos&agrupar=zona` e por seção `/api/v1/export/sections?cidade=sao-jose-dos-campos` (também na página **Arquivos**).
 - No fim da página, "Detalhes dos arquivos do TSE (diagnóstico)" mostra o que veio do TSE, caso o formato mude.
+
+## PDF da votação por município
+
+No painel "Votos por cidade" de cada candidato em destaque há o botão **PDF**: gera um documento A4 com todos os municípios (ordem decrescente de votos), votos, % dos válidos no município e % do total do candidato, com resumo na primeira página, total no fim e numeração de páginas. Endereço direto: `/api/v1/export/candidate-cities-pdf?uf=sp&office=deputado-federal&numero=<número>` (ou `&nome=ROBERTINHO`).

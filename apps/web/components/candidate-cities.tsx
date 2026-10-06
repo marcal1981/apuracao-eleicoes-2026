@@ -229,6 +229,12 @@ export function CandidateCities({
                     >
                       Planilha
                     </button>
+                    <a
+                      href={`/api/v1/export/candidate-cities-pdf?uf=${uf}&office=${office}&numero=${candidateNumber}`}
+                      className="rounded-lg border border-border px-3 py-1.5 text-sm hover:border-accent hover:text-accent"
+                    >
+                      PDF
+                    </a>
                   </div>
                   <table className="mt-2 w-full text-sm">
                     <thead className="text-left text-xs text-muted">
