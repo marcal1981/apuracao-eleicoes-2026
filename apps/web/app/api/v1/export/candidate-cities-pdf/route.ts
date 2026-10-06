@@ -35,6 +35,7 @@ const safe = (font: PDFFont, text: string) =>
 /**
  * Votos por município de um candidato em destaque, em PDF:
  * /api/v1/export/candidate-cities-pdf?uf=sp&office=deputado-federal&numero=2533 (ou &nome=ROBERTINHO)
+ * Lista só os municípios com votos; &todas=1 inclui também os sem votos.
  */
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
@@ -62,8 +63,10 @@ export async function GET(req: NextRequest) {
   const officeName = OFFICES[office].name;
   const stateName = STATE_NAMES[snap.uf] ?? snap.uf;
   const total = candidate.total;
-  const cities = candidate.cities; // já em ordem decrescente de votos
-  const withVotes = cities.filter((c) => c.votes > 0).length;
+  // Por padrão, só os municípios com votos (já em ordem decrescente); &todas=1 inclui os sem votos.
+  const all = candidate.cities;
+  const withVotes = all.filter((c) => c.votes > 0).length;
+  const cities = sp.get("todas") === "1" ? all : all.filter((c) => c.votes > 0);
   const maxVotes = cities[0]?.votes ?? 0;
   const complete = snap.citiesRead >= snap.citiesTotal && cities.every((c) => c.sectionsTotalizedPct >= 100);
 
@@ -113,7 +116,7 @@ export async function GET(req: NextRequest) {
 
   const stats: [string, string][] = [
     ["Total de votos", formatInt(total)],
-    ["Municípios com votos", `${formatInt(withVotes)} de ${formatInt(cities.length)}`],
+    ["Municípios com votos", `${formatInt(withVotes)} de ${formatInt(snap.citiesTotal)}`],
     ["Município com mais votos", cities[0] && cities[0].votes > 0 ? `${cities[0].name} (${formatInt(cities[0].votes)})` : "—"],
   ];
   const boxW = (W - 2 * M - 16) / 3;
@@ -132,6 +135,13 @@ export async function GET(req: NextRequest) {
     : `Atenção: dados parciais — ${formatInt(snap.citiesRead)} de ${formatInt(snap.citiesTotal)} municípios lidos; alguns ainda sem 100% das seções totalizadas.`;
   page.drawText(t(note), { x: M, y, size: 9, font, color: complete ? MUTED : rgb(0.7, 0.35, 0) });
   y -= 13;
+  if (cities.length < all.length) {
+    page.drawText(
+      t(`A lista traz os ${formatInt(cities.length)} municípios onde o candidato teve votos; nos outros ${formatInt(all.length - cities.length)} lidos, ele não teve votos.`),
+      { x: M, y, size: 9, font, color: MUTED },
+    );
+    y -= 13;
+  }
   page.drawText(
     t(`Fonte: Tribunal Superior Eleitoral (resultados.tse.jus.br)${snap.updatedAt ? ` · dados de ${formatDateTimeBrasilia(snap.updatedAt)}` : ""} · gerado em ${generated}`),
     { x: M, y, size: 8, font, color: MUTED },

@@ -253,7 +253,7 @@ Página `/abstencao/sao-jose-dos-campos`: **mapa de São José dos Campos com a 
 
 ## PDF da votação por município
 
-No painel "Votos por cidade" de cada candidato em destaque há o botão **PDF**: gera um documento A4 com todos os municípios (ordem decrescente de votos), votos, % dos válidos no município e % do total do candidato, com resumo na primeira página, total no fim e numeração de páginas. Endereço direto: `/api/v1/export/candidate-cities-pdf?uf=sp&office=deputado-federal&numero=<número>` (ou `&nome=ROBERTINHO`).
+No painel "Votos por cidade" de cada candidato em destaque há o botão **PDF**: gera um documento A4 com os municípios onde o candidato teve votos (ordem decrescente; `&todas=1` inclui os sem votos), votos, % dos válidos no município e % do total do candidato, com resumo na primeira página, total no fim e numeração de páginas. Endereço direto: `/api/v1/export/candidate-cities-pdf?uf=sp&office=deputado-federal&numero=<número>` (ou `&nome=ROBERTINHO`).
 
 ## Aba "Votos por distrito"
 
