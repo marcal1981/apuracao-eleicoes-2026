@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_TSE_ENDPOINT, describeDer, findPleitoCode, parseBuDer, parseBuImage, parseSectionAux, parseUrnaConfig, sectionAuxUrl, urnaConfigUrl } from "../src";
+import { DEFAULT_TSE_ENDPOINT, describeDer, findPleitoCode, parseBuCandidateVotes, parseBuDer, parseBuImage, parseSectionAux, parseUrnaConfig, sectionAuxUrl, urnaConfigUrl } from "../src";
 
 describe("arquivos de urna", () => {
   it("acha o pleito da eleição", () => {
@@ -120,5 +120,19 @@ describe("arquivos de urna", () => {
     expect(parseBuDer(envelope(boletim(errado)))).toBeNull();
     expect(parseBuDer(Uint8Array.from([1, 2, 3]))).toBeNull();
     expect(describeDer(envelope(boletim(errado)))).toContain("u2 70998");
+  });
+
+  it("lê os votos de um candidato no boletim", () => {
+    const estadual = eleicao(
+      6259,
+      280,
+      tipo(1, 230, cargo(3, 1, nominal(120, 10), nominal(80, 45), branco(18), nulo(12))),
+      tipo(2, 230,
+        cargo(6, 3, nominal(37, 2533), nominal(150, 4545), branco(28), nulo(15)),
+        cargo(7, 4, nominal(150, 25333), nominal(60, 45000), branco(20)),
+      ),
+    );
+    const votes = parseBuCandidateVotes(envelope(boletim(estadual)), ["2533", "45000", "9999"]);
+    expect(votes && Object.fromEntries(votes)).toEqual({ "2533": 37, "45000": 60, "9999": 0 });
   });
 });

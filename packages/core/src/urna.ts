@@ -319,3 +319,35 @@ export function describeDer(bytes: Uint8Array, maxLines = 150): string {
   walk(root, "");
   return lines.join("\n");
 }
+
+/**
+ * Votos nominais de candidatos (pelo número) no boletim de urna binário. Cada votável é
+ * (tipoVoto, quantidadeVotos, identificacaoVotavel (partido, código), assinatura); o número do
+ * candidato é o código. Os números têm tamanhos diferentes por cargo (2 a 5 dígitos), então não se misturam.
+ */
+export function parseBuCandidateVotes(bytes: Uint8Array, numbers: string[]): Map<string, number> | null {
+  const root = readDer(bytes);
+  if (!root) return null;
+  const wanted = new Map(numbers.map((n) => [Number(n), n]));
+  const out = new Map<string, number>(numbers.map((n) => [n, 0]));
+  const visit = (nodes: DerNode[], depth: number) => {
+    for (const n of nodes) {
+      if (n.constructed && n.children?.length) {
+        const [tipo, qtd, ident] = n.children;
+        const votes = tipo && !tipo.constructed ? derInt(qtd) : null;
+        if (votes !== null && ident?.constructed && ident.children?.length && ident.children.every((c) => !c.constructed)) {
+          const code = derInt(ident.children[ident.children.length - 1]);
+          const key = code !== null ? wanted.get(code) : undefined;
+          if (key !== undefined && derInt(tipo) !== null) out.set(key, out.get(key)! + votes);
+          continue;
+        }
+        visit(n.children, depth + 1);
+      } else if (!n.constructed && n.value.length > 16 && depth < 6) {
+        const inner = readDer(n.value, 0);
+        if (inner) visit(inner, depth + 1);
+      }
+    }
+  };
+  visit(root, 0);
+  return out;
+}

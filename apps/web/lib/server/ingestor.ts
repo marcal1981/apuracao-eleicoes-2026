@@ -425,6 +425,7 @@ const GLOBAL_KEY = Symbol.for("apuracao.ingestor");
 const CITIES_KEY = Symbol.for("apuracao.candidate-cities");
 const ABSTENTION_KEY = Symbol.for("apuracao.abstention");
 const SECTIONS_KEY = Symbol.for("apuracao.sections");
+const REGISTRIES_KEY = Symbol.for("apuracao.registries");
 
 /** Instância única por processo; inicia a ingestão na primeira chamada (exceto durante o build). */
 export function getIngestor(): Ingestor {
@@ -452,6 +453,7 @@ export function getIngestor(): Ingestor {
       if (reg) sections.set(c.slug, new SectionAbstentionTracker(instance, reg, c.uf, c.city, c.slug));
     }
     g[SECTIONS_KEY] = sections;
+    g[REGISTRIES_KEY] = registries;
     if (process.env.NEXT_PHASE !== "phase-production-build" && process.env.INGESTION_DISABLED !== "true") {
       instance.start();
       for (const t of cityTrackers.values()) t.start();
@@ -478,4 +480,11 @@ export function getSectionTracker(slug: string): SectionAbstentionTracker | unde
   getIngestor();
   const trackers = (globalThis as unknown as Record<symbol, Map<string, SectionAbstentionTracker> | undefined>)[SECTIONS_KEY];
   return trackers?.get(slug.toLowerCase());
+}
+
+/** Lista de municípios (com códigos do TSE) de uma UF com mapa municipal. */
+export function getMunicipalityRegistry(uf: string): MunicipalityRegistry | undefined {
+  getIngestor();
+  const registries = (globalThis as unknown as Record<symbol, Map<string, MunicipalityRegistry> | undefined>)[REGISTRIES_KEY];
+  return registries?.get(uf.toLowerCase());
 }

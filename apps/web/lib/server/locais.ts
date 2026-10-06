@@ -1,7 +1,7 @@
 // Locais de votação de uma cidade (nome, endereço, bairro e coordenadas), do Portal de Dados Abertos do TSE.
 //
-// O arquivo do TSE é nacional e grande: é baixado uma única vez, filtrado para a cidade e apagado.
-// Só o resultado filtrado fica em data/cities/locais-<cidade>.json.
+// O arquivo do TSE é nacional e grande: é baixado uma única vez (fica em data/downloads, para servir a
+// outras cidades) e filtrado para a cidade, que fica em data/cities/locais-<cidade>.json.
 // Sem internet para o TSE, dá para colocar o .zip (ou o .csv) manualmente em data/locais/.
 
 import { createReadStream, createWriteStream, promises as fs } from "node:fs";
@@ -47,6 +47,11 @@ export class PollingPlaces {
 
   get rows() {
     return this.state.rows;
+  }
+
+  /** Espera a carga em andamento (se houver) terminar. */
+  async whenSettled() {
+    await this.loading;
   }
 
   /** Carrega do cache, ou baixa do TSE (uma vez). Pode ser chamado várias vezes. */
@@ -109,8 +114,21 @@ export class PollingPlaces {
 
   private async readSource(source: string, tseCode: string): Promise<PollingPlaceRow[]> {
     if (!/^https?:/.test(source)) return this.readFile(source, tseCode);
-    const tmp = path.join(this.ingestor.config.dataDir, "downloads", `locais-${Date.now()}.zip`);
-    await fs.mkdir(path.dirname(tmp), { recursive: true });
+    // O arquivo nacional fica guardado em data/downloads para servir a outras cidades sem baixar de novo.
+    const file = path.join(this.ingestor.config.dataDir, "downloads", path.basename(new URL(source).pathname) || "locais.zip");
+    const cached = await fs.stat(file).then((st) => st.size > 0).catch(() => false);
+    if (!cached) await this.download(source, file);
+    try {
+      return await this.readFile(file, tseCode);
+    } catch (err) {
+      await fs.rm(file, { force: true }); // arquivo corrompido: baixa de novo na próxima tentativa
+      throw err;
+    }
+  }
+
+  private async download(source: string, file: string) {
+    const tmp = `${file}.${Date.now()}.part`;
+    await fs.mkdir(path.dirname(file), { recursive: true });
     try {
       this.state = { ...this.state, status: "downloading", source, message: null, downloadedMb: 0 };
       const res = await fetch(source, { headers: { "user-agent": USER_AGENT }, signal: AbortSignal.timeout(20 * 60_000) });
@@ -122,7 +140,7 @@ export class PollingPlaces {
         this.state.downloadedMb = Math.round(bytes / 1e5) / 10;
       });
       await pipeline(body, createWriteStream(tmp));
-      return await this.readFile(tmp, tseCode);
+      await fs.rename(tmp, file);
     } finally {
       await fs.rm(tmp, { force: true });
     }

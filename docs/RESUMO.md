@@ -254,3 +254,13 @@ Página `/abstencao/sao-jose-dos-campos`: **mapa de São José dos Campos com a 
 ## PDF da votação por município
 
 No painel "Votos por cidade" de cada candidato em destaque há o botão **PDF**: gera um documento A4 com todos os municípios (ordem decrescente de votos), votos, % dos válidos no município e % do total do candidato, com resumo na primeira página, total no fim e numeração de páginas. Endereço direto: `/api/v1/export/candidate-cities-pdf?uf=sp&office=deputado-federal&numero=<número>` (ou `&nome=ROBERTINHO`).
+
+## Aba "Votos por distrito"
+
+Página `/votos-por-distrito`: votos de um candidato em destaque numa área da cidade.
+
+- **São Paulo:** escolha um dos 96 distritos oficiais (contorno da Prefeitura — GeoSampa, em `public/maps/sao-paulo-distritos.json`). Entram as seções dos locais de votação cuja localização (cadastro de locais do TSE) fica dentro do distrito.
+- **Outras cidades:** busca pelo nome do bairro (ou parte dele) no cadastro de locais.
+- Os votos vêm do **boletim de urna** de cada seção (número do candidato no boletim). Mostra total, % de quem votou na área, e a lista de locais de votação com seções e votos.
+- Resultado guardado em `data/cities/area-votos-*.json`; o cadastro nacional de locais fica em `data/downloads` para servir a qualquer cidade sem baixar de novo.
+- API: `/api/v1/votos-por-area?uf=sp&cidade=São Paulo&distrito=CIDADE TIRADENTES&numero=2533` (ou `&bairro=` para outras cidades).

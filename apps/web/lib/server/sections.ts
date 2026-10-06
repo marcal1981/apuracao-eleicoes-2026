@@ -7,10 +7,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import {
-  electionCodeFor,
-  electionConfigUrl,
-  findPleitoCode,
-  normalizePlaceName,
   describeDer,
   parseBuDer,
   parseBuImage,
@@ -21,9 +17,10 @@ import {
   urnaConfigUrl,
   type SectionRef,
 } from "@apuracao/core";
-import { USER_AGENT, type Ingestor } from "./ingestor";
+import type { Ingestor } from "./ingestor";
 import type { MunicipalityRegistry } from "./municipal";
 import { PollingPlaces } from "./locais";
+import { fetchBytes, resolvePleito, tseCodeOf } from "./urna-files";
 
 // 3: aptos e comparecimento lidos da eleição e conferidos com a soma dos votos (versões 1 e 2 guardaram números errados).
 const CACHE_VERSION = 3;
@@ -147,21 +144,7 @@ export class SectionAbstentionTracker {
     void tick();
   }
 
-  private tseCode(): string | null {
-    const wanted = normalizePlaceName(this.city);
-    return this.registry.municipalities().find((m) => normalizePlaceName(m.name) === wanted)?.tseCode ?? null;
-  }
 
-  private async resolvePleito(): Promise<string> {
-    if (this.pleito) return this.pleito;
-    const url = electionConfigUrl(this.ingestor.config.endpoint);
-    const res = await this.ingestor.httpGet(url, undefined, 30_000);
-    if (res.kind !== "new") throw new Error(`configuração de eleições não disponível no TSE (${url})`);
-    const election = electionCodeFor(this.ingestor.config.electionCodes, "governador");
-    const pleito = findPleitoCode(JSON.parse(res.body), election);
-    if (!pleito) throw new Error(`pleito da eleição ${election} não encontrado em ${url} (defina TSE_PLEITO no .env)`);
-    return (this.pleito = pleito);
-  }
 
   private async loadRefs(tseCode: string, pleito: string) {
     const url = urnaConfigUrl(this.ingestor.config.endpoint, pleito, this.uf);
@@ -183,11 +166,11 @@ export class SectionAbstentionTracker {
         if (this.refs.length === 0) this.refs = mockRefs();
       } else {
         if (!(await this.registry.ensureTseCodes())) throw new Error(this.registry.lastError ?? "lista de municípios do TSE ainda não disponível");
-        const code = this.tseCode();
+        const code = tseCodeOf(this.registry, this.city);
         if (!code) throw new Error(`${this.city} não encontrada na lista de municípios do TSE`);
         tseCode = code;
         this.places.ensure(code);
-        pleito = await this.resolvePleito();
+        pleito = this.pleito ?? (this.pleito = await resolvePleito(this.ingestor));
         if (this.refs.length === 0) await this.loadRefs(tseCode, pleito);
       }
 
@@ -248,7 +231,7 @@ export class SectionAbstentionTracker {
       return true;
     }
     const buUrl = sectionFileUrl(endpoint, pleito, this.uf, tseCode, r, aux.hash, aux.buFile);
-    const bytes = await this.fetchBytes(buUrl);
+    const bytes = await fetchBytes(buUrl);
     if (!bytes) {
       this.noteAux(buUrl, "boletim ainda não disponível no TSE", auxRes.body);
       this.setPending(r, aux.status || "Boletim ainda não publicado");
@@ -272,20 +255,6 @@ export class SectionAbstentionTracker {
     return true;
   }
 
-  /** Baixa um arquivo binário da urna; null se ainda não publicado. */
-  private async fetchBytes(url: string): Promise<Uint8Array | null> {
-    for (let attempt = 0; ; attempt++) {
-      try {
-        const res = await fetch(url, { headers: { "user-agent": USER_AGENT }, signal: AbortSignal.timeout(20_000), cache: "no-store" });
-        if (res.status === 404 || res.status === 403) return null;
-        if (!res.ok) throw new Error(`HTTP ${res.status} em ${url}`);
-        return new Uint8Array(await res.arrayBuffer());
-      } catch (err) {
-        if (attempt >= 2) throw err;
-        await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
-      }
-    }
-  }
 
   private noteAux(url: string, result: string, body: string | null) {
     this.sample.lastAuxUrl = url;
