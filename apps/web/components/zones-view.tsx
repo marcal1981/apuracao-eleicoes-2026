@@ -50,6 +50,7 @@ interface Snapshot {
 // Escala de cores relativa: da zona com menos abstenção (claro) à com mais (escuro).
 const COLORS = ["#fde68a", "#fbbf24", "#f97316", "#dc2626", "#991b1b"];
 const n = (code: string) => String(Number(code));
+const TOP_SECTIONS = 20;
 
 function totalsOf(list: Section[]) {
   const read = list.filter((s) => s.done);
@@ -102,7 +103,23 @@ export function ZonesView({ slug }: { slug: string }) {
           const info = placeInfo.get(`${n(code)}-${place}`);
           return { code: place, name: info?.name || `Local ${place}`, bairro: info?.bairro ?? "", lat: info?.lat ?? null, lon: info?.lon ?? null, ...totalsOf(secs) };
         });
-        return { code, label: n(code), places, ...totalsOf(sections) };
+        // As 20 seções com maior % de abstenção da zona (só as já apuradas).
+        const top = sections
+          .filter((s) => s.done && s.turnout + s.abstention > 0)
+          .map((s) => {
+            const info = s.place ? placeInfo.get(`${n(code)}-${s.place}`) : undefined;
+            return {
+              section: n(s.section),
+              place: info?.name || (s.place ? `Local ${s.place}` : "—"),
+              bairro: info?.bairro ?? "",
+              electorate: s.electorate,
+              abstention: s.abstention,
+              abstentionPct: (s.abstention / (s.turnout + s.abstention)) * 100,
+            };
+          })
+          .sort((a, b) => b.abstentionPct - a.abstentionPct || b.abstention - a.abstention)
+          .slice(0, TOP_SECTIONS);
+        return { code, label: n(code), places, top, ...totalsOf(sections) };
       });
     const read = list.filter((z) => z.read > 0);
     const min = Math.min(...read.map((z) => z.abstentionPct));
@@ -335,6 +352,61 @@ export function ZonesView({ slug }: { slug: string }) {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {zones.some((z) => z.top.length > 0) && (
+        <div className="space-y-2">
+          <h2 className="text-lg font-semibold">
+            {TOP_SECTIONS} seções com maior abstenção {zone ? `da zona ${zone.label}` : "de cada zona"}
+          </h2>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {(zone ? [zone] : zones)
+              .filter((z) => z.top.length > 0)
+              .map((z) => (
+                <div key={z.code} className="min-w-0 overflow-hidden rounded-xl border border-border bg-surface">
+                  <div className="flex items-center gap-2 border-b border-border px-3 py-2 text-sm font-semibold">
+                    <span className="inline-block h-3 w-3 rounded-sm" style={{ background: z.color }} />
+                    Zona {z.label}
+                    <span className="ml-auto text-xs font-normal text-muted">média da zona: {formatPct(z.abstentionPct)}</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-left text-xs text-muted">
+                        <tr className="border-b border-border">
+                          <th className="px-3 py-1.5">#</th>
+                          <th className="px-3 py-1.5">Seção</th>
+                          <th className="px-3 py-1.5">Local de votação</th>
+                          <th className="px-3 py-1.5 text-right">Aptos</th>
+                          <th className="px-3 py-1.5 text-right">Abst.</th>
+                          <th className="px-3 py-1.5 text-right">%</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {z.top.map((s, i) => (
+                          <tr key={s.section} className="border-b border-border last:border-0">
+                            <td className="px-3 py-1.5 text-xs text-muted">{i + 1}</td>
+                            <td className="px-3 py-1.5 font-medium">{s.section}</td>
+                            <td className="max-w-[220px] px-3 py-1.5">
+                              <span className="block truncate" title={s.place}>
+                                {s.place}
+                              </span>
+                              {s.bairro && <span className="block truncate text-xs text-muted">{s.bairro}</span>}
+                            </td>
+                            <td className="px-3 py-1.5 text-right">{formatInt(s.electorate)}</td>
+                            <td className="px-3 py-1.5 text-right">{formatInt(s.abstention)}</td>
+                            <td className="px-3 py-1.5 text-right font-semibold">{formatPct(s.abstentionPct)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+          </div>
+          <p className="text-xs text-muted">
+            Clique numa zona no mapa ou na tabela para ver só as seções dela. A lista completa está na &quot;Planilha por seção&quot;.
+          </p>
         </div>
       )}
 
