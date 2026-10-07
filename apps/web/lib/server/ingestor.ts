@@ -450,7 +450,12 @@ export function getIngestor(): Ingestor {
     const sections = new Map<string, SectionAbstentionTracker>();
     for (const c of SECTION_CITIES) {
       const reg = registries.get(c.uf);
-      if (reg) sections.set(c.slug, new SectionAbstentionTracker(instance, reg, c.uf, c.city, c.slug));
+      // Votos dos candidatos em destaque (Deputados da mesma UF) lidos junto com cada boletim de urna.
+      const featured = () =>
+        [...cityTrackers]
+          .filter(([key]) => key.endsWith(`:${c.uf}`))
+          .flatMap(([key, t]) => t.candidateList().map((cand) => ({ ...cand, office: key.split(":")[0]! })));
+      if (reg) sections.set(c.slug, new SectionAbstentionTracker(instance, reg, c.uf, c.city, c.slug, featured));
     }
     g[SECTIONS_KEY] = sections;
     g[REGISTRIES_KEY] = registries;

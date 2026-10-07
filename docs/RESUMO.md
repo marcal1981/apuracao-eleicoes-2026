@@ -264,3 +264,12 @@ Página `/votos-por-distrito`: votos de um candidato em destaque numa área da c
 - Os votos vêm do **boletim de urna** de cada seção (número do candidato no boletim). Mostra total, % de quem votou na área, e a lista de locais de votação com seções e votos.
 - Resultado guardado em `data/cities/area-votos-*.json`; o cadastro nacional de locais fica em `data/downloads` para servir a qualquer cidade sem baixar de novo.
 - API: `/api/v1/votos-por-area?uf=sp&cidade=São Paulo&distrito=CIDADE TIRADENTES&numero=2533` (ou `&bairro=` para outras cidades).
+
+## Aba "Votos por bairro SJC"
+
+Página `/votos-por-bairro`: votos dos **candidatos em destaque** em São José dos Campos, somados **por bairro**.
+
+- Ao ler o boletim de urna de cada seção (o mesmo usado na Abstenção SJC), o sistema guarda também os votos de cada candidato em destaque. O bairro vem do local de votação no cadastro oficial do TSE.
+- Escolha um candidato (ou "Comparar todos"): resumo (votos na cidade, bairros com votos, bairro com mais votos), **mapa** com um círculo por local de votação (maior = mais votos) e **tabela por bairro** com votos, % de quem votou no bairro e % do total do candidato. Clique num bairro para ver as escolas e destacá-las no mapa.
+- "Baixar planilha": bairros × candidatos em destaque.
+- Se a lista de destaques mudar, as seções são relidas automaticamente.

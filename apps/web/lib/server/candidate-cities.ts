@@ -269,6 +269,11 @@ export class CandidateCitiesTracker {
     return this.queries;
   }
 
+  /** Candidatos em destaque já identificados nesta disputa (nome e número). */
+  candidateList(): { name: string; number: string }[] {
+    return [...this.candidates.values()];
+  }
+
   getSnapshot(): CandidateCitiesSnapshot {
     const names = new Map(this.municipal.municipalities().map((m) => [m.ibge, m.name]));
     return {

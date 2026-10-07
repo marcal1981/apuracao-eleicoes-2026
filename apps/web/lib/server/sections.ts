@@ -8,6 +8,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import {
   describeDer,
+  parseBuCandidateVotes,
   parseBuDer,
   parseBuImage,
   parseSectionAux,
@@ -37,6 +38,16 @@ export interface SectionAbstention {
   abstentionPct: number;
   /** true quando o boletim de urna já foi lido. */
   done: boolean;
+  /** Votos dos candidatos em destaque nesta seção (número → votos). */
+  votes?: Record<string, number>;
+  /** Números de candidatos procurados quando o boletim foi lido (para reler se a lista mudar). */
+  votesKey?: string;
+}
+
+export interface FeaturedCandidate {
+  number: string;
+  name: string;
+  office: string;
 }
 
 /** Local de votação com as seções dele (coordenadas do cadastro do TSE). */
@@ -68,6 +79,8 @@ export interface SectionsSnapshot {
     lastAuxBody?: string | null;
   };
   sections: SectionAbstention[];
+  /** Candidatos em destaque cujos votos são lidos dos boletins. */
+  candidates: FeaturedCandidate[];
   places: PlaceInfo[];
   placesStatus: PollingPlaces["snapshot"];
 }
@@ -95,6 +108,7 @@ export class SectionAbstentionTracker {
     readonly uf: string,
     readonly city: string,
     readonly slug: string,
+    private readonly featured: () => FeaturedCandidate[] = () => [],
   ) {
     this.mock = ingestor.config.source === "mock";
     this.cacheFile = path.join(ingestor.config.dataDir, "cities", `secoes-${slug}${this.mock ? "-mock" : ""}.json`);
@@ -138,8 +152,8 @@ export class SectionAbstentionTracker {
         this.progress.lastError = err instanceof Error ? err.message : String(err);
         this.ingestor.log("error", `Seções ${this.city}: ${this.progress.lastError}`);
       });
-      const pending = this.refs.length === 0 || [...this.sections.values()].some((s) => !s.done);
-      if (pending || this.sections.size < this.refs.length) setTimeout(tick, this.refs.length === 0 ? 30_000 : intervalMs);
+      // Continua consultando: seções ainda sem boletim e candidatos em destaque que apareçam depois.
+      setTimeout(tick, this.refs.length === 0 ? 30_000 : intervalMs);
     };
     void tick();
   }
@@ -174,7 +188,12 @@ export class SectionAbstentionTracker {
         if (this.refs.length === 0) await this.loadRefs(tseCode, pleito);
       }
 
-      const queue = this.refs.filter((r) => !this.sections.get(keyOf(r))?.done);
+      // Seções sem boletim lido, ou lidas antes de saber os candidatos em destaque atuais.
+      const key = this.votesKey();
+      const queue = this.refs.filter((r) => {
+        const s = this.sections.get(keyOf(r));
+        return !s?.done || (key !== "" && s.votesKey !== key);
+      });
       this.progress = { running: true, done: 0, total: queue.length, failures: 0, lastError: null };
       let changed = false;
       let sinceSave = 0;
@@ -242,6 +261,8 @@ export class SectionAbstentionTracker {
       this.sample.bu = aux.buKind === "der" ? `${buUrl}\n${describeDer(bytes)}` : new TextDecoder("latin1").decode(bytes).slice(0, 1500);
     }
     if (!bu) throw new Error(`números não encontrados no boletim de urna (${aux.buFile})`);
+    const numbers = this.featured().map((c) => c.number);
+    const votes = numbers.length && aux.buKind === "der" ? parseBuCandidateVotes(bytes, numbers) : null;
     this.sections.set(keyOf(r), {
       ...r,
       place: bu.place,
@@ -251,8 +272,16 @@ export class SectionAbstentionTracker {
       abstention: bu.abstention,
       abstentionPct: pct(bu.abstention, bu.turnout + bu.abstention),
       done: true,
+      ...(votes ? { votes: Object.fromEntries(votes), votesKey: this.votesKey() } : {}),
     });
     return true;
+  }
+
+  private votesKey() {
+    return this.featured()
+      .map((c) => c.number)
+      .sort()
+      .join(",");
   }
 
 
@@ -286,6 +315,8 @@ export class SectionAbstentionTracker {
       abstention,
       abstentionPct: pct(abstention, electorate),
       done: true,
+      votes: Object.fromEntries(this.featured().map((c, i) => [c.number, (seed * (i + 7) * 31) % (i === 0 ? 40 : 12)])),
+      votesKey: this.votesKey(),
     });
     return true;
   }
@@ -316,6 +347,7 @@ export class SectionAbstentionTracker {
       progress: { ...this.progress },
       sample: this.sample,
       sections,
+      candidates: this.featured(),
       places: [...placeInfo.values()],
       placesStatus: this.mock ? { status: "ready", source: "simulação", message: null, downloadedMb: 0, count: placeRows.length } : this.places.snapshot,
     };
