@@ -39,6 +39,8 @@ interface PlaceAgg {
   bairro: string;
   sections: number;
   turnout: number;
+  electorate: number;
+  abstention: number;
   votes: Record<string, number>;
 }
 
@@ -72,21 +74,27 @@ export async function GET(req: NextRequest) {
         bairro: (p?.bairro || NO_BAIRRO).trim().toUpperCase(),
         sections: 0,
         turnout: 0,
+        electorate: 0,
+        abstention: 0,
         votes: {},
       };
       places.set(key, agg);
     }
     agg.sections++;
     agg.turnout += s.turnout;
+    agg.electorate += s.electorate;
+    agg.abstention += s.abstention;
     for (const [num, v] of Object.entries(s.votes!)) agg.votes[num] = (agg.votes[num] ?? 0) + v;
   }
-  const bairroMap = new Map<string, { name: string; places: PlaceAgg[]; sections: number; turnout: number; votes: Record<string, number> }>();
+  const bairroMap = new Map<string, { name: string; places: PlaceAgg[]; sections: number; turnout: number; electorate: number; abstention: number; votes: Record<string, number> }>();
   for (const p of places.values()) {
     let b = bairroMap.get(p.bairro);
-    if (!b) bairroMap.set(p.bairro, (b = { name: p.bairro, places: [], sections: 0, turnout: 0, votes: {} }));
+    if (!b) bairroMap.set(p.bairro, (b = { name: p.bairro, places: [], sections: 0, turnout: 0, electorate: 0, abstention: 0, votes: {} }));
     b.places.push(p);
     b.sections += p.sections;
     b.turnout += p.turnout;
+    b.electorate += p.electorate;
+    b.abstention += p.abstention;
     for (const [num, v] of Object.entries(p.votes)) b.votes[num] = (b.votes[num] ?? 0) + v;
   }
   const valueOf = (votes: Record<string, number>) => candidates.reduce((sum, c) => sum + (votes[c.number] ?? 0), 0);
@@ -180,10 +188,13 @@ export async function GET(req: NextRequest) {
   if (all) {
     // Tabela comparativa: bairro × candidatos.
     // Colunas o mais largas possível, deixando ~170 pt para o nome do bairro.
-    const colW = Math.min(90, (W - 2 * M - 24 - 170) / (candidates.length + 1));
+    const colW = Math.min(90, (W - 2 * M - 24 - 150) / (candidates.length + 3));
     const totalX = W - M;
     // Uma coluna por candidato e, à direita, a coluna do total.
     const candX = candidates.map((_, i) => totalX - colW * (candidates.length + 1 - i));
+    // Eleitores e abstenções do bairro, à esquerda dos candidatos.
+    const electX = candX[0]! - colW * 2;
+    const abstX = candX[0]! - colW;
     header = () => {
       page.drawText(t("#", bold), { x: M, y, size: 7.5, font: bold, color: MUTED });
       page.drawText(t("Bairro", bold), { x: M + 24, y, size: 7.5, font: bold, color: MUTED });
@@ -192,6 +203,8 @@ export async function GET(req: NextRequest) {
         const w = name.split(/\s+/);
         return title(w.length > 1 ? `${w[0]} ${w[w.length - 1]}` : name);
       };
+      right("Eleitores", electX + colW - 4, y, bold, 7.5, MUTED);
+      right("Abstenções", abstX + colW - 4, y, bold, 7.5, MUTED);
       candidates.forEach((c, i) => {
         let size = 7.5;
         while (bold.widthOfTextAtSize(t(short(c.name), bold), size) > colW - 6 && size > 6) size -= 0.25;
@@ -206,7 +219,9 @@ export async function GET(req: NextRequest) {
       ensure(0);
       if (i % 2 === 1) page.drawRectangle({ x: M - 4, y: y - 4, width: W - 2 * M + 8, height: ROW, color: ZEBRA });
       page.drawText(String(i + 1), { x: M, y, size: 8, font, color: MUTED });
-      page.drawText(fit(title(b.name), candX[0]! - M - 34), { x: M + 24, y, size: 8.5, font, color: INK });
+      page.drawText(fit(title(b.name), electX - M - 34), { x: M + 24, y, size: 8.5, font, color: INK });
+      right(formatInt(b.electorate), electX + colW - 4, y, font, 8.5, MUTED);
+      right(formatInt(b.abstention), abstX + colW - 4, y, font, 8.5, MUTED);
       candidates.forEach((c, j) => right(formatInt(b.votes[c.number] ?? 0), candX[j]! + colW - 4, y, font, 8.5));
       right(formatInt(valueOf(b.votes)), totalX, y, bold, 8.5);
       y -= ROW;
@@ -214,17 +229,21 @@ export async function GET(req: NextRequest) {
     ensure(10);
     page.drawLine({ start: { x: M, y: y + 9 }, end: { x: W - M, y: y + 9 }, thickness: 0.8, color: LINE });
     page.drawText(t("Total", bold), { x: M + 24, y: y - 4, size: 9, font: bold, color: INK });
+    right(formatInt(bairros.reduce((sum, b) => sum + b.electorate, 0)), electX + colW - 4, y - 4, bold, 9);
+    right(formatInt(bairros.reduce((sum, b) => sum + b.abstention, 0)), abstX + colW - 4, y - 4, bold, 9);
     candidates.forEach((c, j) =>
       right(formatInt(bairros.reduce((sum, b) => sum + (b.votes[c.number] ?? 0), 0)), candX[j]! + colW - 4, y - 4, bold, 9),
     );
     right(formatInt(cityTotal), totalX, y - 4, bold, 9);
   } else {
     // Parte 1: ranking dos bairros.
-    const col = { votes: W - M - 175, bar: W - M - 165, share: W - M - 60, part: W - M };
+    const col = { places: W - M - 315, electorate: W - M - 265, abstention: W - M - 205, votes: W - M - 160, bar: W - M - 152, share: W - M - 55, part: W - M };
     header = () => {
       page.drawText(t("#", bold), { x: M, y, size: 8, font: bold, color: MUTED });
       page.drawText(t("Bairro", bold), { x: M + 26, y, size: 8, font: bold, color: MUTED });
-      right("Locais", col.votes - 52, y, bold, 8, MUTED);
+      right("Locais", col.places, y, bold, 8, MUTED);
+      right("Eleitores", col.electorate, y, bold, 8, MUTED);
+      right("Abstenções", col.abstention, y, bold, 8, MUTED);
       right("Votos", col.votes, y, bold, 8, MUTED);
       right("% no bairro", col.share, y, bold, 8, MUTED);
       right("% do total", col.part, y, bold, 8, MUTED);
@@ -239,10 +258,12 @@ export async function GET(req: NextRequest) {
       const v = valueOf(b.votes);
       if (i % 2 === 1) page.drawRectangle({ x: M - 4, y: y - 4, width: W - 2 * M + 8, height: ROW, color: ZEBRA });
       page.drawText(String(i + 1), { x: M, y, size: 8.5, font, color: MUTED });
-      page.drawText(fit(title(b.name), col.votes - M - 110), { x: M + 26, y, size: 9, font, color: INK });
-      right(String(b.places.length), col.votes - 52, y, font, 9, MUTED);
+      page.drawText(fit(title(b.name), col.places - M - 60), { x: M + 26, y, size: 9, font, color: INK });
+      right(String(b.places.length), col.places, y, font, 9, MUTED);
+      right(formatInt(b.electorate), col.electorate, y, font, 9, MUTED);
+      right(formatInt(b.abstention), col.abstention, y, font, 9, MUTED);
       right(formatInt(v), col.votes, y, bold, 9);
-      if (maxBairro > 0) page.drawRectangle({ x: col.bar, y: y - 1, width: Math.max(1, (v / maxBairro) * 50), height: 7, color: BAR });
+      if (maxBairro > 0) page.drawRectangle({ x: col.bar, y: y - 1, width: Math.max(1, (v / maxBairro) * 40), height: 7, color: BAR });
       right(b.turnout > 0 ? formatPct((v / b.turnout) * 100) : "—", col.share, y);
       right(cityTotal > 0 ? formatPct((v / cityTotal) * 100) : "—", col.part, y);
       y -= ROW;
@@ -250,6 +271,8 @@ export async function GET(req: NextRequest) {
     ensure(10);
     page.drawLine({ start: { x: M, y: y + 9 }, end: { x: W - M, y: y + 9 }, thickness: 0.8, color: LINE });
     page.drawText(t("Total", bold), { x: M + 26, y: y - 4, size: 9.5, font: bold, color: INK });
+    right(formatInt(bairros.reduce((sum, b) => sum + b.electorate, 0)), col.electorate, y - 4, bold, 9.5);
+    right(formatInt(bairros.reduce((sum, b) => sum + b.abstention, 0)), col.abstention, y - 4, bold, 9.5);
     right(formatInt(cityTotal), col.votes, y - 4, bold, 9.5);
     right("100,00%", col.part, y - 4, bold, 9.5);
 
@@ -259,7 +282,9 @@ export async function GET(req: NextRequest) {
     y -= 20;
     header = () => {
       page.drawText(t("Local de votação", bold), { x: M + 12, y, size: 8, font: bold, color: MUTED });
-      right("Seções", W - M - 120, y, bold, 8, MUTED);
+      right("Seções", W - M - 230, y, bold, 8, MUTED);
+      right("Eleitores", W - M - 175, y, bold, 8, MUTED);
+      right("Abstenções", W - M - 115, y, bold, 8, MUTED);
       right("Votos", W - M - 60, y, bold, 8, MUTED);
       right("% no local", W - M, y, bold, 8, MUTED);
       page.drawLine({ start: { x: M, y: y - 5 }, end: { x: W - M, y: y - 5 }, thickness: 0.8, color: LINE });
@@ -276,8 +301,10 @@ export async function GET(req: NextRequest) {
       for (const p of list) {
         ensure(0);
         const v = valueOf(p.votes);
-        page.drawText(fit(p.name, W - 2 * M - 190), { x: M + 12, y, size: 8.5, font, color: INK });
-        right(`${p.sections} seç.`, W - M - 120, y, font, 8, MUTED);
+        page.drawText(fit(p.name, W - 2 * M - 285), { x: M + 12, y, size: 8.5, font, color: INK });
+        right(`${p.sections} seç.`, W - M - 230, y, font, 8, MUTED);
+        right(formatInt(p.electorate), W - M - 175, y, font, 8.5, MUTED);
+        right(formatInt(p.abstention), W - M - 115, y, font, 8.5, MUTED);
         right(formatInt(v), W - M - 60, y, bold, 8.5);
         right(p.turnout > 0 ? formatPct((v / p.turnout) * 100) : "—", W - M, y, font, 8.5, MUTED);
         y -= ROW - 1;

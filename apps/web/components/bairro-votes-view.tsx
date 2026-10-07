@@ -15,6 +15,8 @@ interface Section {
   section: string;
   place: string | null;
   turnout: number;
+  electorate: number;
+  abstention: number;
   done: boolean;
   votes?: Record<string, number>;
 }
@@ -52,6 +54,9 @@ interface PlaceAgg {
   lon: number | null;
   sections: number;
   turnout: number;
+  /** Eleitores aptos e abstenções das seções lidas. */
+  electorate: number;
+  abstention: number;
   votes: Record<string, number>;
 }
 interface BairroAgg {
@@ -59,6 +64,9 @@ interface BairroAgg {
   places: PlaceAgg[];
   sections: number;
   turnout: number;
+  /** Eleitores aptos e abstenções das seções lidas. */
+  electorate: number;
+  abstention: number;
   votes: Record<string, number>;
 }
 
@@ -131,12 +139,16 @@ export function BairroVotesView({ slug }: { slug: string }) {
           lon: p?.lon ?? null,
           sections: 0,
           turnout: 0,
+          electorate: 0,
+          abstention: 0,
           votes: {},
         };
         places.set(key, agg);
       }
       agg.sections++;
       agg.turnout += s.turnout;
+      agg.electorate += s.electorate;
+      agg.abstention += s.abstention;
       for (const [num, v] of Object.entries(s.votes!)) {
         agg.votes[num] = (agg.votes[num] ?? 0) + v;
         cityVotes[num] = (cityVotes[num] ?? 0) + v;
@@ -145,10 +157,12 @@ export function BairroVotesView({ slug }: { slug: string }) {
     const byBairro = new Map<string, BairroAgg>();
     for (const p of places.values()) {
       let b = byBairro.get(p.bairro);
-      if (!b) byBairro.set(p.bairro, (b = { name: p.bairro, places: [], sections: 0, turnout: 0, votes: {} }));
+      if (!b) byBairro.set(p.bairro, (b = { name: p.bairro, places: [], sections: 0, turnout: 0, electorate: 0, abstention: 0, votes: {} }));
       b.places.push(p);
       b.sections += p.sections;
       b.turnout += p.turnout;
+      b.electorate += p.electorate;
+      b.abstention += p.abstention;
       for (const [num, v] of Object.entries(p.votes)) b.votes[num] = (b.votes[num] ?? 0) + v;
     }
     return { bairros: [...byBairro.values()], cityVotes };
@@ -199,10 +213,10 @@ export function BairroVotesView({ slug }: { slug: string }) {
   const ps = data?.placesStatus;
 
   const downloadCsv = () => {
-    const header = ["Bairro", "Locais de votação", "Seções", "Comparecimento", ...candidates.map((c) => `${c.name} (${c.number})`)];
+    const header = ["Bairro", "Locais de votação", "Seções", "Eleitores", "Comparecimento", "Abstenções", ...candidates.map((c) => `${c.name} (${c.number})`)];
     const lines = [...bairros]
       .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
-      .map((b) => [b.name, String(b.places.length), String(b.sections), String(b.turnout), ...candidates.map((c) => String(b.votes[c.number] ?? 0))]);
+      .map((b) => [b.name, String(b.places.length), String(b.sections), String(b.electorate), String(b.turnout), String(b.abstention), ...candidates.map((c) => String(b.votes[c.number] ?? 0))]);
     const csv = "﻿" + [header, ...lines].map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(";")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
@@ -357,6 +371,12 @@ export function BairroVotesView({ slug }: { slug: string }) {
                   <th className="px-3 py-2">#</th>
                   <th className="px-3 py-2">Bairro</th>
                   <th className="px-3 py-2 text-right">Locais</th>
+                  <th className="px-3 py-2 text-right" title="Eleitores aptos nas seções lidas">
+                    Eleitores
+                  </th>
+                  <th className="px-3 py-2 text-right" title="Eleitores aptos que não compareceram">
+                    Abstenções
+                  </th>
                   {all ? (
                     <>
                       {candidates.map((c) => (
@@ -395,6 +415,11 @@ export function BairroVotesView({ slug }: { slug: string }) {
                           {isOpen ? "▾" : "▸"} {title(b.name)}
                         </td>
                         <td className="px-3 py-2 text-right">{b.places.length}</td>
+                        <td className="px-3 py-2 text-right">{formatInt(b.electorate)}</td>
+                        <td className="px-3 py-2 text-right">
+                          {formatInt(b.abstention)}
+                          <span className="ml-1 text-xs text-muted">({b.electorate > 0 ? formatPct((b.abstention / b.electorate) * 100) : "—"})</span>
+                        </td>
                         {all ? (
                           <>
                             {candidates.map((c) => (
@@ -423,6 +448,11 @@ export function BairroVotesView({ slug }: { slug: string }) {
                                 {pl.address && <span className="block text-muted">{pl.address}</span>}
                               </td>
                               <td className="px-3 py-1.5 text-right text-muted">{pl.sections} seç.</td>
+                              <td className="px-3 py-1.5 text-right">{formatInt(pl.electorate)}</td>
+                              <td className="px-3 py-1.5 text-right">
+                                {formatInt(pl.abstention)}
+                                <span className="ml-1 text-muted">({pl.electorate > 0 ? formatPct((pl.abstention / pl.electorate) * 100) : "—"})</span>
+                              </td>
                               {all ? (
                                 <>
                                   {candidates.map((c) => (
