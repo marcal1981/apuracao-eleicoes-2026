@@ -351,3 +351,49 @@ export function parseBuCandidateVotes(bytes: Uint8Array, numbers: string[]): Map
   visit(root, 0);
   return out;
 }
+
+/**
+ * Votos de um cargo no boletim de urna (ex.: 1 = Presidente): número do candidato → votos, mais
+ * "branco" e "nulo". Só olha a lista de votáveis daquele cargo, então números iguais em cargos
+ * diferentes (ex.: 13 para Presidente e para Governador) não se misturam. null se o cargo não estiver no boletim.
+ */
+export function parseBuCargoVotes(bytes: Uint8Array, cargoCode: number): Record<string, number> | null {
+  const root = readDer(bytes);
+  if (!root) return null;
+  let out: Record<string, number> | null = null;
+  const add = (key: string, v: number) => {
+    out ??= {};
+    out[key] = (out[key] ?? 0) + v;
+  };
+  const visit = (nodes: DerNode[], depth: number) => {
+    for (const n of nodes) {
+      if (n.constructed && n.children?.length) {
+        // Um resultado por tipo de cargo (validado pela soma dos votos): (tipoCargo, comparecimento, cargos).
+        if (turnoutOf(n) !== null) {
+          for (const cargo of n.children[2]!.children ?? []) {
+            if (!cargo.constructed || derInt(cargo.children?.[0]) !== cargoCode) continue;
+            for (const v of cargo.children?.[2]?.children ?? []) {
+              const [tipo, qtd, ident] = v.children ?? [];
+              const votes = derInt(qtd);
+              if (votes === null) continue;
+              const kind = derInt(tipo);
+              if (ident?.constructed && ident.children?.length && kind === 1) {
+                add(String(derInt(ident.children[ident.children.length - 1])), votes);
+              } else if (kind === 2) add("branco", votes);
+              else if (kind === 3) add("nulo", votes);
+              else add("outros", votes);
+            }
+            if (!out) out = {};
+          }
+          continue;
+        }
+        visit(n.children, depth + 1);
+      } else if (!n.constructed && n.value.length > 16 && depth < 6) {
+        const inner = readDer(n.value, 0);
+        if (inner) visit(inner, depth + 1);
+      }
+    }
+  };
+  visit(root, 0);
+  return out;
+}

@@ -11,6 +11,8 @@ export interface PlacePoint {
   /** Texto do balão (HTML já escapado). */
   html: string;
   highlighted?: boolean;
+  /** Cor própria do ponto (ex.: cor do candidato que venceu no local). */
+  color?: string;
 }
 
 /** Mapa da cidade com um círculo por local de votação, de tamanho proporcional ao valor (votos). */
@@ -57,12 +59,13 @@ export function PlacesMap({ points, outline, color = "#2563eb" }: { points: Plac
       for (const p of [...points].sort((a, b) => b.value - a.value)) {
         bounds.extend([p.lat, p.lon]);
         const dim = anyHighlight && !p.highlighted;
+        const fill = p.color ?? color;
         L.circleMarker([p.lat, p.lon], {
           radius: p.value > 0 ? 3 + 15 * Math.sqrt(p.value / max) : 2.5,
-          color: p.highlighted ? "#0f172a" : p.value > 0 ? color : "#94a3b8",
+          color: p.highlighted ? "#0f172a" : p.value > 0 ? fill : "#94a3b8",
           weight: p.highlighted ? 2 : 1,
-          fillColor: p.value > 0 ? color : "#cbd5e1",
-          fillOpacity: dim ? 0.12 : p.value > 0 ? 0.55 : 0.5,
+          fillColor: p.value > 0 ? fill : "#cbd5e1",
+          fillOpacity: dim ? 0.12 : p.value > 0 ? (p.color ? 0.75 : 0.55) : 0.5,
           opacity: dim ? 0.3 : 1,
         })
           .bindTooltip(p.html)

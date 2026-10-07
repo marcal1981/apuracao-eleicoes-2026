@@ -9,6 +9,7 @@ import path from "node:path";
 import {
   describeDer,
   parseBuCandidateVotes,
+  parseBuCargoVotes,
   parseBuDer,
   parseBuImage,
   parseSectionAux,
@@ -42,6 +43,8 @@ export interface SectionAbstention {
   votes?: Record<string, number>;
   /** Números de candidatos procurados quando o boletim foi lido (para reler se a lista mudar). */
   votesKey?: string;
+  /** Votos para Presidente na seção: número do candidato → votos, mais "branco" e "nulo". */
+  presVotes?: Record<string, number>;
 }
 
 export interface FeaturedCandidate {
@@ -192,7 +195,8 @@ export class SectionAbstentionTracker {
       const key = this.votesKey();
       const queue = this.refs.filter((r) => {
         const s = this.sections.get(keyOf(r));
-        return !s?.done || (key !== "" && s.votesKey !== key);
+        // (Boletins lidos antes de guardar os votos de Presidente também são relidos uma vez.)
+        return !s?.done || (key !== "" && s.votesKey !== key) || !s.presVotes;
       });
       this.progress = { running: true, done: 0, total: queue.length, failures: 0, lastError: null };
       let changed = false;
@@ -263,6 +267,8 @@ export class SectionAbstentionTracker {
     if (!bu) throw new Error(`números não encontrados no boletim de urna (${aux.buFile})`);
     const numbers = this.featured().map((c) => c.number);
     const votes = numbers.length && aux.buKind === "der" ? parseBuCandidateVotes(bytes, numbers) : null;
+    // Presidente é o cargo 1 do boletim; {} quando o boletim não traz o cargo (não relê de novo).
+    const presVotes = (aux.buKind === "der" ? parseBuCargoVotes(bytes, 1) : null) ?? {};
     this.sections.set(keyOf(r), {
       ...r,
       place: bu.place,
@@ -273,6 +279,7 @@ export class SectionAbstentionTracker {
       abstentionPct: pct(bu.abstention, bu.turnout + bu.abstention),
       done: true,
       ...(votes ? { votes: Object.fromEntries(votes), votesKey: this.votesKey() } : {}),
+      presVotes,
     });
     return true;
   }
@@ -316,6 +323,7 @@ export class SectionAbstentionTracker {
       abstentionPct: pct(abstention, electorate),
       done: true,
       votes: Object.fromEntries(this.featured().map((c, i) => [c.number, (seed * (i + 7) * 31) % (i === 0 ? 40 : 12)])),
+      presVotes: { "13": 60 + (seed % 70), "22": 50 + ((seed * 7) % 80), "15": (seed * 3) % 25, branco: seed % 9, nulo: (seed * 5) % 11 },
       votesKey: this.votesKey(),
     });
     return true;

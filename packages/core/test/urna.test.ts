@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_TSE_ENDPOINT, describeDer, findPleitoCode, parseBuCandidateVotes, parseBuDer, parseBuImage, parseSectionAux, parseUrnaConfig, sectionAuxUrl, urnaConfigUrl } from "../src";
+import { DEFAULT_TSE_ENDPOINT, describeDer, findPleitoCode, parseBuCandidateVotes, parseBuCargoVotes, parseBuDer, parseBuImage, parseSectionAux, parseUrnaConfig, sectionAuxUrl, urnaConfigUrl } from "../src";
 
 describe("arquivos de urna", () => {
   it("acha o pleito da eleição", () => {
@@ -134,5 +134,13 @@ describe("arquivos de urna", () => {
     );
     const votes = parseBuCandidateVotes(envelope(boletim(estadual)), ["2533", "45000", "9999"]);
     expect(votes && Object.fromEntries(votes)).toEqual({ "2533": 37, "45000": 60, "9999": 0 });
+  });
+
+  it("lê os votos de Presidente sem misturar com Governador", () => {
+    const federal = eleicao(6257, 280, tipo(1, 230, cargo(1, 1, nominal(130, 13), nominal(80, 22), branco(12), nulo(8))));
+    const estadual = eleicao(6259, 280, tipo(1, 230, cargo(3, 1, nominal(150, 13), nominal(60, 45), branco(12), nulo(8))));
+    expect(parseBuCargoVotes(envelope(boletim(federal, estadual)), 1)).toEqual({ "13": 130, "22": 80, branco: 12, nulo: 8 });
+    expect(parseBuCargoVotes(envelope(boletim(federal, estadual)), 3)).toEqual({ "13": 150, "45": 60, branco: 12, nulo: 8 });
+    expect(parseBuCargoVotes(envelope(boletim(estadual)), 1)).toBeNull();
   });
 });

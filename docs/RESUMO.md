@@ -274,3 +274,13 @@ Página `/votos-por-bairro`: votos dos **candidatos em destaque** em São José 
 - "Baixar planilha": bairros × candidatos em destaque.
 - Se a lista de destaques mudar, as seções são relidas automaticamente.
 - Botão **PDF** na aba: com um candidato selecionado, relatório com o ranking dos bairros (locais, eleitores, abstenções, votos, % no bairro, % do total) e, na segunda parte, os locais de votação de cada bairro; em "Comparar todos", tabela de bairros × candidatos em página deitada. Endereço: `/api/v1/export/bairros-pdf?cidade=sao-jose-dos-campos&numero=2533` (ou `numero=todos`).
+
+## Aba "Presidente por bairro SJC"
+
+Página `/presidente-por-bairro`: votação para **Presidente da República** em São José dos Campos, por bairro.
+
+- Ao ler o boletim de urna de cada seção, o sistema guarda também os votos do **cargo de Presidente** (lidos só desse cargo, para não misturar números iguais de Governador). Boletins lidos antes disso são relidos uma vez.
+- Resumo: 1º e 2º na cidade (votos, % dos válidos e em quantos bairros cada um vence), votos válidos e seções lidas.
+- **Mapa:** cada local de votação na cor do candidato mais votado ali (tamanho = votos válidos).
+- **Tabela por bairro:** eleitores, abstenções, votos e % dos válidos de cada candidato principal, outros, brancos e nulos, e o vencedor; barra colorida com a divisão dos votos; clique para ver as escolas. Ordenação por eleitores ou pelo % de um candidato.
+- "Baixar planilha": todos os bairros com todos os candidatos, brancos, nulos e vencedor.
