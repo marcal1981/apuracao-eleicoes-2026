@@ -223,13 +223,22 @@ export function BairroVotesView({ slug }: { slug: string }) {
           </p>
         </div>
         {bairros.length > 0 && (
-          <button
-            type="button"
-            onClick={downloadCsv}
-            className="rounded-full border border-border px-3 py-1 text-xs font-semibold hover:border-accent hover:text-accent"
-          >
-            Baixar planilha
-          </button>
+          <div className="flex gap-2">
+            <a
+              href={`/api/v1/export/bairros-pdf?cidade=${slug}&numero=${all ? "todos" : selected}`}
+              className="rounded-full border border-accent bg-accent px-3 py-1 text-xs font-semibold text-white hover:opacity-90"
+              title={all ? "Relatório comparando os candidatos por bairro" : "Relatório do candidato selecionado por bairro e local de votação"}
+            >
+              PDF
+            </a>
+            <button
+              type="button"
+              onClick={downloadCsv}
+              className="rounded-full border border-border px-3 py-1 text-xs font-semibold hover:border-accent hover:text-accent"
+            >
+              Baixar planilha
+            </button>
+          </div>
         )}
       </div>
 
