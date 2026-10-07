@@ -60,7 +60,12 @@ interface BairroAgg extends Agg {
 }
 
 // Cores dos principais candidatos (os demais ficam em "Outros").
-const COLORS = ["#dc2626", "#2563eb", "#16a34a", "#f59e0b", "#7c3aed", "#0891b2"];
+// Cores fixas por candidato (pelo nome de urna); os demais recebem as cores seguintes, sem repetir.
+const FIXED_COLORS: [RegExp, string][] = [
+  [/\bLULA\b/i, "#dc2626"], // vermelho
+  [/\bBOLSONARO\b/i, "#2563eb"], // azul
+];
+const COLORS = ["#16a34a", "#f59e0b", "#7c3aed", "#0891b2", "#db2777", "#65a30d"];
 const OTHER = "#94a3b8";
 const MAX_SHOWN = 6;
 const PAGE = 40;
@@ -175,7 +180,17 @@ export function PresidentBairroView({ slug }: { slug: string }) {
   );
   const cityValid = valid(city.votes);
   const shown = ranking.filter((num, i) => i < MAX_SHOWN && (i < 2 || (city.votes[num] ?? 0) / Math.max(1, cityValid) >= 0.01));
-  const colorOf = useCallback((num: string | null) => (num && shown.includes(num) ? COLORS[shown.indexOf(num)]! : OTHER), [shown]);
+  const colorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const num of shown) {
+      const fixed = FIXED_COLORS.find(([re]) => re.test(names.get(num)?.name ?? ""));
+      if (fixed) map.set(num, fixed[1]);
+    }
+    const free = COLORS.filter((c) => ![...map.values()].includes(c));
+    for (const num of shown) if (!map.has(num)) map.set(num, free.shift() ?? OTHER);
+    return map;
+  }, [shown, names]);
+  const colorOf = useCallback((num: string | null) => (num ? (colorMap.get(num) ?? OTHER) : OTHER), [colorMap]);
   const others = (v: Record<string, number>) => valid(v) - shown.reduce((s, num) => s + (v[num] ?? 0), 0);
   // Coluna "Outros" só quando há votos fora dos candidatos mostrados.
   const hasOthers = others(city.votes) > 0;
