@@ -53,6 +53,15 @@ export function RaceView({ office, scope, round, raceKey, title, initial, featur
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {race && def.system === "proporcional" && (
+            <a
+              href={`/api/v1/export/quase-eleitos?${query}`}
+              className="rounded-full border border-border px-3 py-1 text-xs font-semibold hover:border-accent hover:text-accent"
+              title="PDF com os 20 candidatos não eleitos que ficaram mais perto da vaga na própria lista"
+            >
+              PDF: quase eleitos
+            </a>
+          )}
           {race && (
             <a
               href={`/api/v1/export/results?${query}`}

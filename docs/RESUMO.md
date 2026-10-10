@@ -284,3 +284,7 @@ Página `/presidente-por-bairro`: votação para **Presidente da República** em
 - **Mapa:** cada local de votação na cor do candidato mais votado ali (tamanho = votos válidos).
 - **Tabela por bairro:** eleitores, abstenções, votos e % dos válidos de cada candidato principal, outros, brancos e nulos, e o vencedor; barra colorida com a divisão dos votos; clique para ver as escolas. Ordenação por eleitores ou pelo % de um candidato.
 - "Baixar planilha": todos os bairros com todos os candidatos, brancos, nulos e vencedor.
+
+## PDF "quase eleitos"
+
+Nas páginas de **Deputado Federal, Estadual e Distrital**, o botão **"PDF: quase eleitos"** gera a lista dos 20 candidatos não eleitos que ficaram mais perto da vaga. Como a vaga é do partido/federação, a conta é quantos votos faltaram para alcançar o **último eleito da própria lista** (listas sem nenhuma vaga ficam de fora). Usa os eleitos informados pelo TSE; enquanto não houver, usa a projeção da plataforma e avisa no PDF. Endereço: `/api/v1/export/quase-eleitos?office=deputado-federal&state=SP` (`&limite=` muda a quantidade).
