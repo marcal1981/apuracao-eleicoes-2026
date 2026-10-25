@@ -39,7 +39,7 @@ function diagnose(l: TseLink): { tone: Tone; title: string; detail: string } {
     return {
       tone: "wait",
       title: "Conectado ao TSE — arquivos do 2º turno ainda não publicados",
-      detail: "Normal antes das 17h (horário de Brasília). Se continuar assim depois das 17h30, os códigos da eleição podem ser outros.",
+      detail: "Normal antes do fim da votação (19h de Brasília, com a prorrogação). Se continuar assim depois das 19h30, os códigos da eleição podem ser outros.",
     };
   if (l.errorsLastCycle > 0)
     return { tone: "wait", title: "Conectado ao TSE, com falhas pontuais", detail: `${l.errorsLastCycle} consultas falharam no último ciclo e serão repetidas. ${l.lastError ?? ""}` };

@@ -271,7 +271,7 @@ export function SecondRoundView() {
           <div className="rounded-xl border border-border bg-surface p-4">
             {!r2 ? (
               <p className="text-sm">
-                Aguardando os primeiros números do 2º turno no TSE (a apuração começa depois das 17h). A página se atualiza
+                Aguardando os primeiros números do 2º turno no TSE (com a votação prorrogada, a apuração começa depois das 19h de Brasília). A página se atualiza
                 sozinha a cada 15 segundos.
               </p>
             ) : (
@@ -409,7 +409,7 @@ export function SecondRoundView() {
                   <strong>Exterior</strong> (fora do mapa): {formatPct(ufMap.exterior.r2.pct)} apurado
                   {ufMap.exterior.r2.a + ufMap.exterior.r2.b > 0
                     ? ` · ${nameA} ${formatPct(shareA(ufMap.exterior.r2.a, ufMap.exterior.r2.b))} · ${nameB} ${formatPct(100 - shareA(ufMap.exterior.r2.a, ufMap.exterior.r2.b))}`
-                    : " · o TSE divulga depois das 17h de Brasília"}
+                    : " · o TSE divulga depois do fim da votação no Brasil (19h de Brasília)"}
                   .{" "}
                   <button type="button" className="underline hover:text-accent" onClick={() => setState("ZZ")}>
                     ver gráfico
