@@ -12,6 +12,7 @@ import {
   matchesCandidate,
   officesForScope,
   parseSimplifiedResult,
+  defaultElectionCodes,
   raceKey,
   resultFileUrl,
   simulateSimplifiedResult,
@@ -464,8 +465,41 @@ export function getIngestor(): Ingestor {
       for (const t of cityTrackers.values()) t.start();
       for (const t of abstention.values()) t.start();
     }
+    // 2º turno em paralelo (desde o início, para guardar toda a evolução da apuração).
+    getSecondRoundIngestor();
   }
   return instance;
+}
+
+const ROUND2_KEY = Symbol.for("apuracao.ingestor-r2");
+
+/**
+ * Ingestão do 2º turno (Presidente e Governador) rodando ao lado da principal, que continua no 1º turno:
+ * as páginas de deputados, bairros e abstenção seguem com o 1º turno, e o 2º turno tem a sua comparação.
+ * Desligue com SECOND_ROUND=false no .env. Códigos das eleições: 6258 (federal) e 6260 (estadual),
+ * ou TSE_ELECTION_FEDERAL_R2 / TSE_ELECTION_STATE_R2.
+ */
+export function getSecondRoundIngestor(): Ingestor | null {
+  const g = globalThis as unknown as Record<symbol, Ingestor | null | undefined>;
+  if (g[ROUND2_KEY] !== undefined) return g[ROUND2_KEY] ?? null;
+  const main = getIngestor();
+  if (main.config.round !== 1 || process.env.SECOND_ROUND === "false") {
+    g[ROUND2_KEY] = null;
+    return null;
+  }
+  const codes = defaultElectionCodes(2);
+  const r2 = new Ingestor({
+    ...main.config,
+    round: 2,
+    electionCodes: {
+      federal: process.env.TSE_ELECTION_FEDERAL_R2 || codes.federal,
+      state: process.env.TSE_ELECTION_STATE_R2 || codes.state,
+    },
+    offices: ["presidente", "governador"],
+  });
+  g[ROUND2_KEY] = r2;
+  if (process.env.NEXT_PHASE !== "phase-production-build" && process.env.INGESTION_DISABLED !== "true") r2.start();
+  return r2;
 }
 
 
