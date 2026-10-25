@@ -139,6 +139,8 @@ export function ExteriorView() {
   const t1 = data?.total.r1 ?? null;
   const t2 = data?.total.r2 ?? null;
   const has2 = !!t2 && t2.a + t2.b > 0;
+  // A diferença de votos entre os turnos só faz sentido com o 2º turno inteiro apurado.
+  const done2 = has2 && t2!.pct >= 100;
   const lead1 = t1 ? shareA(t1.a, t1.b) : null;
   const lead2 = has2 ? shareA(t2!.a, t2!.b) : null;
 
@@ -217,7 +219,7 @@ export function ExteriorView() {
                     <th className="px-3 py-2">Total do exterior</th>
                     <th className="px-3 py-2 text-right">1º turno</th>
                     <th className="px-3 py-2 text-right">2º turno{has2 ? ` (${formatPct(t2!.pct)} apurado)` : ""}</th>
-                    <th className="px-3 py-2 text-right">Diferença</th>
+                    <th className="px-3 py-2 text-right">Diferença{has2 && !done2 ? " (com 100% apurado)" : ""}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -238,7 +240,7 @@ export function ExteriorView() {
                         {has2 && r.v2 !== undefined ? formatInt(r.v2) : "—"}
                         {has2 && r.p2 !== null && <span className="text-xs font-normal text-muted"> ({formatPct(r.p2)})</span>}
                       </td>
-                      <td className="px-3 py-2 text-right">{has2 && r.v2 !== undefined ? signed(r.v2 - r.v1) : "—"}</td>
+                      <td className="px-3 py-2 text-right">{done2 && r.v2 !== undefined ? signed(r.v2 - r.v1) : "—"}</td>
                     </tr>
                   ))}
                   {[
@@ -254,7 +256,7 @@ export function ExteriorView() {
                         {has2 && r.v2 !== undefined ? formatInt(r.v2) : "—"}
                         {has2 && r.p2 !== null && <span className="text-xs"> ({formatPct(r.p2)})</span>}
                       </td>
-                      <td className="px-3 py-2 text-right">{has2 && r.v2 !== undefined ? signed(r.v2 - r.v1) : "—"}</td>
+                      <td className="px-3 py-2 text-right">{done2 && r.v2 !== undefined ? signed(r.v2 - r.v1) : "—"}</td>
                     </tr>
                   ))}
                 </tbody>
