@@ -267,6 +267,8 @@ export function ExteriorView() {
             </div>
           )}
 
+          <G1Section nameA={nameA} nameB={nameB} colorA={colorA} colorB={colorB} aIsLula={/lula/i.test(A?.name ?? "LULA")} />
+
           {/* Leitura das cidades */}
           <p className="text-xs text-muted">
             Cidades com urnas apuradas: 1º turno {r1Read} de {data.rounds?.["1"].citiesListed ?? 0} · 2º turno {r2Read} de {r2Listed}
@@ -373,6 +375,130 @@ export function ExteriorView() {
         </>
       )}
     </section>
+  );
+}
+
+interface G1Data {
+  url: string;
+  readAt: string;
+  error: string | null;
+  countries: { country: string; region: string; r1: { lula: number; flavio: number } | null; r2: { lula: number; flavio: number } | null }[];
+}
+
+/** Parcial do g1 (boletins de urna somados pela imprensa), à parte do resultado oficial do TSE. */
+function G1Section({ nameA, nameB, colorA, colorB, aIsLula }: { nameA: string; nameB: string; colorA: string; colorB: string; aIsLula: boolean }) {
+  const [g1, setG1] = useState<G1Data | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const load = () =>
+      fetch("/api/v1/exterior/g1", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d: G1Data | null) => d && setG1(d))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 120_000);
+    return () => clearInterval(id);
+  }, []);
+  if (!g1) return null;
+  // Lula/Flávio do g1 → finalistas A/B da página.
+  const ab = (v: { lula: number; flavio: number } | null) => (v ? (aIsLula ? { a: v.lula, b: v.flavio } : { a: v.flavio, b: v.lula }) : null);
+  const rows = g1.countries
+    .map((c) => ({ ...c, v1: ab(c.r1), v2: ab(c.r2) }))
+    .sort((x, y) => (y.v2 ? y.v2.a + y.v2.b : -1) - (x.v2 ? x.v2.a + x.v2.b : -1) || (y.v1 ? y.v1.a + y.v1.b : 0) - (x.v1 ? x.v1.a + x.v1.b : 0));
+  const withR2 = rows.filter((r) => r.v2 && r.v1);
+  const sum = (list: typeof rows, k: "v1" | "v2") => list.reduce((s, r) => ({ a: s.a + (r[k]?.a ?? 0), b: s.b + (r[k]?.b ?? 0) }), { a: 0, b: 0 });
+  const t2 = sum(rows, "v2");
+  const same1 = sum(withR2, "v1");
+  const s2 = shareA(t2.a, t2.b);
+  const s1 = shareA(same1.a, same1.b);
+  const d = (s2 - s1) * 2;
+  return (
+    <div className="space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4 text-sm">
+      <div className="flex flex-wrap items-baseline gap-2">
+        <h2 className="text-base font-semibold">Parcial do g1 — boletins de urna (não oficial)</h2>
+        <span className="text-xs text-muted">
+          lido às {formatTimeBrasilia(g1.readAt)} ·{" "}
+          <a href={g1.url} target="_blank" rel="noreferrer" className="underline hover:text-accent">
+            reportagem
+          </a>
+        </span>
+      </div>
+      {g1.error && <p className="text-xs text-muted">{g1.error}</p>}
+      {withR2.length > 0 ? (
+        <p>
+          Somando os boletins de <strong>{withR2.length}</strong> de {rows.length} países: {nameA}{" "}
+          <strong style={{ color: colorA }}>
+            {formatInt(t2.a)} ({formatPct(s2)})
+          </strong>{" "}
+          × {nameB}{" "}
+          <strong style={{ color: colorB }}>
+            {formatInt(t2.b)} ({formatPct(100 - s2)})
+          </strong>
+          . Nesses mesmos países, no 1º turno, entre os dois: {formatPct(s1)} × {formatPct(100 - s1)} —{" "}
+          <strong style={{ color: d >= 0 ? colorA : colorB }}>
+            {d >= 0 ? nameA : nameB} ganhou {pts(Math.abs(d))} pontos
+          </strong>
+          .
+        </p>
+      ) : (
+        <p>O g1 ainda não publicou boletins do 2º turno.</p>
+      )}
+      <p className="text-xs text-muted">
+        A imprensa soma as fotos dos boletins impressos pelas urnas lá fora; o TSE só divulga o exterior depois do fim da votação no Brasil. Os
+        números oficiais aparecem nas tabelas desta página assim que o TSE liberar.
+      </p>
+      <button type="button" onClick={() => setOpen(!open)} className="text-xs underline hover:text-accent">
+        {open ? "Esconder" : "Ver"} os {rows.length} países do g1
+      </button>
+      {open && (
+        <div className="overflow-x-auto rounded-lg border border-border bg-surface">
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs text-muted">
+              <tr className="border-b border-border">
+                <th className="px-3 py-2">País</th>
+                <th className="px-3 py-2 text-right">
+                  <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: colorA }} />
+                  {nameA}
+                  <span className="block font-normal">1º turno · 2º turno</span>
+                </th>
+                <th className="px-3 py-2 text-right">
+                  <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: colorB }} />
+                  {nameB}
+                  <span className="block font-normal">1º turno · 2º turno</span>
+                </th>
+                <th className="px-3 py-2 text-right">% entre os dois (2º)</th>
+                <th className="px-3 py-2 text-right">Quem ganhou terreno</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const g = r.v1 && r.v2 && r.v1.a + r.v1.b > 0 && r.v2.a + r.v2.b > 0 ? (shareA(r.v2.a, r.v2.b) - shareA(r.v1.a, r.v1.b)) * 2 : null;
+                return (
+                  <tr key={r.country} className="border-b border-border last:border-0">
+                    <td className="px-3 py-2">
+                      <span className="font-medium">{r.country}</span>
+                      <span className="block text-xs text-muted">{title(r.region)}</span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                      {r.v1 ? formatInt(r.v1.a) : "—"} · <strong>{r.v2 ? formatInt(r.v2.a) : "—"}</strong>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                      {r.v1 ? formatInt(r.v1.b) : "—"} · <strong>{r.v2 ? formatInt(r.v2.b) : "—"}</strong>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                      {r.v2 && r.v2.a + r.v2.b > 0 ? `${formatPct(shareA(r.v2.a, r.v2.b))} × ${formatPct(100 - shareA(r.v2.a, r.v2.b))}` : <span className="text-xs text-muted">aguardando boletins</span>}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right font-semibold" style={{ color: g === null ? undefined : g >= 0 ? colorA : colorB }}>
+                      {g === null ? "—" : `${g >= 0 ? nameA : nameB} +${pts(Math.abs(g))}`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
