@@ -288,10 +288,6 @@ export function SecondRoundView() {
                       {ahead(leadNow! - leadSamePoint)} ganhou {pp(Math.abs(leadNow! - leadSamePoint))}
                     </strong>{" "}
                     em relação ao 1º turno.
-                    <span className="mt-1 block text-sm text-muted">
-                      Agora: {nameA} {formatPct(shareA(r2.a, r2.b))} · {nameB} {formatPct(100 - shareA(r2.a, r2.b))}. No 1º turno, no
-                      mesmo ponto: {nameA} {formatPct(50 + leadSamePoint / 2)} · {nameB} {formatPct(50 - leadSamePoint / 2)}.
-                    </span>
                   </>
                 ) : leadR1Final !== null ? (
                   <>
@@ -301,6 +297,28 @@ export function SecondRoundView() {
                   </>
                 ) : null}
               </p>
+            )}
+            {r2 && (leadSamePoint ?? leadR1Final) !== null && (
+              <SummaryTable
+                rows={[
+                  {
+                    label: "2º turno — agora",
+                    detail: `${formatPct(r2.pct)} apurado${r2.timestamp ? `, às ${formatTimeBrasilia(r2.timestamp)}` : ""}`,
+                    lead: leadNow!,
+                  },
+                  leadSamePoint !== null
+                    ? {
+                        label: "1º turno — mesmo ponto",
+                        detail: axis === "pct" ? `${formatPct(r2.pct)} apurado` : `às ${hhmm(nowX!)}`,
+                        lead: leadSamePoint,
+                      }
+                    : { label: "1º turno — resultado final", detail: "sem a evolução guardada", lead: leadR1Final! },
+                ]}
+                nameA={nameA}
+                nameB={nameB}
+                colorA={colorA}
+                colorB={colorB}
+              />
             )}
           </div>
 
@@ -500,6 +518,76 @@ export function SecondRoundView() {
         </>
       )}
     </section>
+  );
+}
+
+/** A frase-resumo em tabela: % de cada finalista (só entre os dois) e a vantagem, agora e no 1º turno, e a variação. */
+function SummaryTable({
+  rows,
+  nameA,
+  nameB,
+  colorA,
+  colorB,
+}: {
+  rows: { label: string; detail: string; lead: number }[];
+  nameA: string;
+  nameB: string;
+  colorA: string;
+  colorB: string;
+}) {
+  const [now, before] = rows as [(typeof rows)[0], (typeof rows)[0]];
+  const d = now.lead - before.lead;
+  const signedPp = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const leadCell = (v: number) => (
+    <span style={{ color: v >= 0 ? colorA : colorB }} className="font-semibold">
+      {v >= 0 ? nameA : nameB} +{pp(Math.abs(v))}
+    </span>
+  );
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="text-left text-xs text-muted">
+          <tr className="border-b border-border">
+            <th className="py-2 pr-3">Momento</th>
+            <th className="px-3 py-2 text-right">
+              <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: colorA }} />
+              {nameA}
+            </th>
+            <th className="px-3 py-2 text-right">
+              <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: colorB }} />
+              {nameB}
+            </th>
+            <th className="py-2 pl-3 text-right">À frente</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.label} className="border-b border-border">
+              <td className="py-2 pr-3">
+                <span className="font-medium">{r.label}</span>
+                <span className="block text-xs text-muted">{r.detail}</span>
+              </td>
+              <td className="px-3 py-2 text-right">{formatPct(50 + r.lead / 2)}</td>
+              <td className="px-3 py-2 text-right">{formatPct(50 - r.lead / 2)}</td>
+              <td className="whitespace-nowrap py-2 pl-3 text-right">{leadCell(r.lead)}</td>
+            </tr>
+          ))}
+          <tr>
+            <td className="py-2 pr-3 font-medium">Variação</td>
+            <td className="px-3 py-2 text-right" style={{ color: d >= 0 ? colorA : "var(--muted)" }}>
+              {signedPp(d / 2)} p.p.
+            </td>
+            <td className="px-3 py-2 text-right" style={{ color: d < 0 ? colorB : "var(--muted)" }}>
+              {signedPp(-d / 2)} p.p.
+            </td>
+            <td className="whitespace-nowrap py-2 pl-3 text-right font-semibold" style={{ color: d >= 0 ? colorA : colorB }}>
+              {d >= 0 ? nameA : nameB} ganhou {pp(Math.abs(d))}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p className="mt-1 text-xs text-muted">Percentuais considerando só os votos dos dois finalistas.</p>
+    </div>
   );
 }
 
