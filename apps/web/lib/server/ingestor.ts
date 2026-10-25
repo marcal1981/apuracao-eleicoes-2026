@@ -91,7 +91,8 @@ export class Ingestor extends EventEmitter {
     this.archive = new Archive(config.dataDir);
 
     // Presidente é divulgado tanto no total nacional quanto por UF.
-    const scopes = ["br", ...STATES.map((s) => s.uf.toLowerCase())];
+    // "zz" = votos do exterior (só Presidente; o total "br" já os inclui).
+    const scopes = ["br", ...STATES.map((s) => s.uf.toLowerCase()), "zz"];
     for (const scope of scopes) {
       for (const office of officesForScope(scope, config.round)) {
         if (!config.offices.includes(office)) continue;

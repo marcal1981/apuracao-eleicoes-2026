@@ -60,7 +60,8 @@ export function GET(req: NextRequest) {
   const office = sp.get("office") === "governador" ? "governador" : "presidente";
   const scope = (sp.get("state") ?? (office === "presidente" ? "BR" : "SP")).toLowerCase();
   if (office === "governador" && scope === "br") return badRequest("Governador exige uma UF");
-  if (scope !== "br" && !STATES.some((s) => s.uf.toLowerCase() === scope)) return badRequest("UF inválida");
+  if (office === "governador" && scope === "zz") return badRequest("No exterior só há votação para Presidente");
+  if (scope !== "br" && scope !== "zz" && !STATES.some((s) => s.uf.toLowerCase() === scope)) return badRequest("UF inválida");
 
   const main = getIngestor();
   const r2ing = getSecondRoundIngestor();
@@ -81,7 +82,7 @@ export function GET(req: NextRequest) {
   // Presidente no Brasil: cada UF nos dois turnos, para comparar só onde o 2º turno já foi apurado.
   const byUf =
     office === "presidente" && scope === "br"
-      ? STATES.map((s) => {
+      ? [...STATES, { uf: "ZZ", name: "Exterior" }].map((s) => {
           const uf = s.uf.toLowerCase();
           const u1 = main.getRace(raceKey(1, "presidente", uf));
           const u2 = r2ing?.getRace(raceKey(2, "presidente", uf)) ?? null;

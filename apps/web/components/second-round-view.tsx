@@ -141,7 +141,7 @@ export function SecondRoundView() {
     return { expected, actual, allSamePoint: rows.every((u) => u.samePoint), rows: rows.sort((x, y) => y.s2 - y.s1 - (x.s2 - x.s1)) };
   }, [data]);
 
-  const scopeName = state === "BR" ? "Brasil" : (STATES.find((s) => s.uf === state)?.name ?? state);
+  const scopeName = state === "BR" ? "Brasil" : state === "ZZ" ? "Exterior" : (STATES.find((s) => s.uf === state)?.name ?? state);
 
   return (
     <section className="space-y-4">
@@ -160,7 +160,7 @@ export function SecondRoundView() {
             type="button"
             onClick={() => {
               setOffice(o);
-              if (o === "governador" && state === "BR") setState("SP");
+              if (o === "governador" && (state === "BR" || state === "ZZ")) setState("SP");
             }}
             aria-pressed={office === o}
             className={`rounded-full border px-3 py-1 text-sm ${office === o ? "border-accent bg-accent text-white" : "border-border hover:border-accent hover:text-accent"}`}
@@ -169,12 +169,13 @@ export function SecondRoundView() {
           </button>
         ))}
         <select value={state} onChange={(e) => setState(e.target.value)} className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm" aria-label="Abrangência">
-          {office === "presidente" && <option value="BR">Brasil</option>}
+          {office === "presidente" && <option value="BR">Brasil (inclui o exterior)</option>}
           {STATES.map((s) => (
             <option key={s.uf} value={s.uf}>
               {s.name}
             </option>
           ))}
+          {office === "presidente" && <option value="ZZ">Exterior</option>}
         </select>
         <span className="ml-auto flex overflow-hidden rounded-full border border-border text-sm">
           {(["pct", "time"] as const).map((ax) => (

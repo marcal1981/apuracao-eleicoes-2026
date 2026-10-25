@@ -296,5 +296,6 @@ Página `/segundo-turno`: acompanha o **2º turno** (Presidente — Brasil ou ca
 - O 2º turno roda **em paralelo** com o 1º (eleições 6258 e 6260 no TSE): as demais abas continuam no 1º turno. Para desligar: `SECOND_ROUND=false` no `.env`; para outros códigos: `TSE_ELECTION_FEDERAL_R2` / `TSE_ELECTION_STATE_R2`.
 - **Frase-resumo:** "Com X% apurado, Fulano está N pontos à frente. No 1º turno, com os mesmos X%, Beltrano estava M pontos à frente — Fulano ganhou K pontos."
 - **Gráfico:** vantagem (pontos, só entre os dois finalistas) ao longo da apuração — 2º turno (linha cheia) e 1º turno (tracejada), por **% apurado** ou **por horário**; passe o mouse para comparar qualquer ponto.
+- **Exterior:** os votos de Presidente do exterior ("ZZ" no TSE) aparecem à parte — no seletor e como uma linha da tabela por UF (o total do Brasil já os inclui).
 - **Presidente no Brasil:** tabela por UF, cada estado comparado com o próprio 1º turno no mesmo % apurado, e o total ponderado — não é afetado pela ordem em que os estados apuram.
 - A evolução do 1º turno vem do histórico que o sistema guardou durante a apuração de 04/10; sem esse histórico, a comparação usa o resultado final do 1º turno (e avisa).

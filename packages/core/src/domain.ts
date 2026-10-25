@@ -128,6 +128,8 @@ export function findState(uf: string): StateDef | undefined {
 
 /** Cargos disputados numa circunscrição. O DF elege deputados distritais em vez de estaduais. */
 export function officesForScope(scope: string, round: number): OfficeKey[] {
+  // Exterior ("ZZ" no TSE): só se vota para Presidente.
+  if (scope.toUpperCase() === "ZZ") return ["presidente"];
   const isBR = scope.toUpperCase() === "BR";
   const isDF = scope.toUpperCase() === "DF";
   return OFFICE_KEYS.filter((key) => {
