@@ -777,7 +777,7 @@ function SummaryTable({
 }
 
 /** Gráfico da vantagem (pontos) ao longo da apuração: 1º turno (tracejado, cinza) e 2º turno (contínuo). */
-function LeadChart({
+export function LeadChart({
   s1,
   s2,
   axis,
