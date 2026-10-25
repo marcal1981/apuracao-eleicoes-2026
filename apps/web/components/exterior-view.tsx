@@ -161,8 +161,10 @@ export function ExteriorView() {
   };
 
   const r2Listed = data?.rounds?.["2"].citiesListed ?? 0;
-  const r2Read = (data?.cities ?? []).filter((c) => c.r2).length;
-  const r1Read = (data?.cities ?? []).filter((c) => c.r1).length;
+  // O TSE publica os arquivos das cidades zerados antes da divulgação: conta só as que já têm votos.
+  const counted = (r: Summary | null) => !!r && (r.pct > 0 || r.a + r.b > 0);
+  const r2Read = (data?.cities ?? []).filter((c) => counted(c.r2)).length;
+  const r1Read = (data?.cities ?? []).filter((c) => counted(c.r1)).length;
 
   return (
     <section className="space-y-4">
@@ -205,7 +207,8 @@ export function ExteriorView() {
               </p>
             ) : (
               <p className="text-sm">
-                Aguardando os votos do 2º turno no exterior. {t1 ? `O 1º turno já está carregado (${formatPct(t1.pct)} apurado).` : ""} A página se
+                Aguardando o TSE divulgar os votos do 2º turno no exterior (só depois do fim da votação no Brasil, às 19h de Brasília). Números
+                que circulam antes disso vêm de boletins de urna afixados nos locais de votação no exterior, não do TSE. {t1 ? `O 1º turno já está carregado (${formatPct(t1.pct)} apurado).` : ""} A página se
                 atualiza sozinha a cada 20 segundos.
               </p>
             )}
@@ -266,7 +269,7 @@ export function ExteriorView() {
 
           {/* Leitura das cidades */}
           <p className="text-xs text-muted">
-            Cidades lidas: 1º turno {r1Read} de {data.rounds?.["1"].citiesListed ?? 0} · 2º turno {r2Read} de {r2Listed}
+            Cidades com urnas apuradas: 1º turno {r1Read} de {data.rounds?.["1"].citiesListed ?? 0} · 2º turno {r2Read} de {r2Listed}
             {data.progress?.running ? ` · lendo agora ${data.progress.done} de ${data.progress.total}…` : ""}
             {data.updatedAt ? ` · atualizado às ${formatTimeBrasilia(data.updatedAt)}` : ""}
             {data.rounds?.["1"].listError ? ` · ${data.rounds["1"].listError}` : ""}
