@@ -301,3 +301,13 @@ Página `/segundo-turno`: acompanha o **2º turno** (Presidente — Brasil ou ca
 - **Exterior:** os votos de Presidente do exterior ("ZZ" no TSE) aparecem à parte — no seletor e como uma linha da tabela por UF (o total do Brasil já os inclui).
 - **Presidente no Brasil:** tabela por UF, cada estado comparado com o próprio 1º turno no mesmo % apurado, e o total ponderado — não é afetado pela ordem em que os estados apuram.
 - A evolução do 1º turno vem do histórico que o sistema guardou durante a apuração de 04/10; sem esse histórico, a comparação usa o resultado final do 1º turno (e avisa).
+
+## Aba "Exterior 1º × 2º"
+
+Página `/exterior`: Presidente no exterior, 1º turno × 2º turno.
+
+- **Total do exterior:** votos e % de cada finalista nos dois turnos, os votos dos demais candidatos no 1º turno, comparecimento e brancos/nulos, com a diferença entre os turnos; frase-resumo com quem ganhou terreno (em pontos, só entre os dois finalistas).
+- **Por país e por cidade:** cada cidade do exterior onde houve votação (lista do cadastro de municípios do TSE, UF "ZZ"), com o % de cada finalista entre os dois no 1º e no 2º turno, quem ganhou terreno e o % apurado. Busca, ordenação e planilha (CSV).
+- O país é deduzido do nome da cidade (`apps/web/lib/exterior-countries.ts`); cidade fora da tabela aparece como "Outros".
+- Leitura em segundo plano a cada 2 minutos (`EXTERIOR_POLL_MS`), com ETag; cidades com o 1º turno finalizado não são lidas de novo. Guarda em `data/cities/exterior-presidente.json`.
+

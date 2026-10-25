@@ -26,6 +26,7 @@ import { MUNICIPAL_UFS, MunicipalityRegistry } from "./municipal";
 import { CandidateCitiesTracker } from "./candidate-cities";
 import { AbstentionTracker } from "./abstention";
 import { SECTION_CITIES, SectionAbstentionTracker } from "./sections";
+import { ExteriorTracker } from "./exterior";
 
 const HISTORY_LIMIT = 2_000;
 const AUDIT_LIMIT = 500;
@@ -447,6 +448,7 @@ const CITIES_KEY = Symbol.for("apuracao.candidate-cities");
 const ABSTENTION_KEY = Symbol.for("apuracao.abstention");
 const SECTIONS_KEY = Symbol.for("apuracao.sections");
 const REGISTRIES_KEY = Symbol.for("apuracao.registries");
+const EXTERIOR_KEY = Symbol.for("apuracao.exterior");
 
 /** Instância única por processo; inicia a ingestão na primeira chamada (exceto durante o build). */
 export function getIngestor(): Ingestor {
@@ -487,6 +489,10 @@ export function getIngestor(): Ingestor {
     }
     // 2º turno em paralelo (desde o início, para guardar toda a evolução da apuração).
     getSecondRoundIngestor();
+    // Presidente nas cidades do exterior, 1º e 2º turnos (aba "Exterior").
+    const exterior = new ExteriorTracker(instance, getSecondRoundIngestor);
+    g[EXTERIOR_KEY] = exterior;
+    if (process.env.NEXT_PHASE !== "phase-production-build" && process.env.INGESTION_DISABLED !== "true") exterior.start();
   }
   return instance;
 }
@@ -539,6 +545,11 @@ export function getSectionTracker(slug: string): SectionAbstentionTracker | unde
   getIngestor();
   const trackers = (globalThis as unknown as Record<symbol, Map<string, SectionAbstentionTracker> | undefined>)[SECTIONS_KEY];
   return trackers?.get(slug.toLowerCase());
+}
+
+export function getExteriorTracker(): ExteriorTracker | undefined {
+  getIngestor();
+  return (globalThis as unknown as Record<symbol, ExteriorTracker | undefined>)[EXTERIOR_KEY];
 }
 
 /** Lista de municípios (com códigos do TSE) de uma UF com mapa municipal. */
