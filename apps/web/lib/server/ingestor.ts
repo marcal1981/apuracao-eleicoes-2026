@@ -82,6 +82,8 @@ export class Ingestor extends EventEmitter {
   };
   private ready: Promise<void>;
   private cycleNotPublished: string[] = [];
+  private lastCycleNotPublished: string[] = [];
+  private lastCycleError: string | null = null;
   private lastNotPublishedCount = -1;
 
   constructor(config = loadConfig()) {
@@ -162,6 +164,8 @@ export class Ingestor extends EventEmitter {
         }
       };
       await Promise.all(Array.from({ length: this.config.concurrency }, worker));
+      this.lastCycleNotPublished = this.cycleNotPublished;
+      this.lastCycleError = [...this.races.values()].find((r) => r.lastError)?.lastError ?? null;
       const missing = this.cycleNotPublished.length;
       if (missing !== this.lastNotPublishedCount) {
         this.lastNotPublishedCount = missing;
@@ -395,6 +399,21 @@ export class Ingestor extends EventEmitter {
       racesFinished: finished,
       errorsLastCycle: this.stats.errorsLastCycle,
       notPublishedLastCycle: Math.max(0, this.lastNotPublishedCount),
+    };
+  }
+
+  /** Detalhes da ligação com o TSE no último ciclo, para mostrar na tela sem precisar olhar o cmd. */
+  getLinkDiagnostics() {
+    const forbidden = this.lastCycleNotPublished.filter((u) => u.endsWith("(HTTP 403)")).length;
+    const example = this.lastCycleNotPublished[0]?.replace(/ \(HTTP \d+\)$/, "") ?? null;
+    const base = this.races.values().next().value as RaceState | undefined;
+    return {
+      notPublishedExample: example,
+      forbidden,
+      lastError: this.lastCycleError,
+      sampleUrl: base
+        ? resultFileUrl(this.config.endpoint, electionCodeFor(this.config.electionCodes, base.office), base.office, base.scope)
+        : null,
     };
   }
 

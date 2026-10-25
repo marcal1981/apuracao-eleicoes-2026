@@ -1,7 +1,15 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { STATES, formatInt, formatPct, formatTimeBrasilia } from "@apuracao/core";
+import { TseLinkBox, type TseLink } from "./tse-link-box";
+import type { UfShade } from "./uf-map";
+
+const UfMap = dynamic(() => import("./uf-map").then((m) => m.UfMap), {
+  ssr: false,
+  loading: () => <div className="h-[380px] w-full animate-pulse rounded-xl border border-border bg-surface sm:h-[480px]" />,
+});
 
 interface Point {
   pct: number;
@@ -33,9 +41,12 @@ interface Data {
     r1SamePoint: { a: number; b: number } | null;
     r2: { a: number; b: number; pct: number };
   }[];
+  link: TseLink | null;
 }
 
 type Axis = "pct" | "time";
+type MapMode = "lider" | "apurado" | "terreno";
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
 // Cores fixas por candidato (as mesmas da aba Presidente por bairro).
 const FIXED: [RegExp, string][] = [
@@ -78,6 +89,7 @@ export function SecondRoundView() {
   const [office, setOffice] = useState<"presidente" | "governador">("presidente");
   const [state, setState] = useState("BR");
   const [axis, setAxis] = useState<Axis>("pct");
+  const [mapMode, setMapMode] = useState<MapMode>("lider");
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -141,6 +153,48 @@ export function SecondRoundView() {
     return { expected, actual, allSamePoint: rows.every((u) => u.samePoint), rows: rows.sort((x, y) => y.s2 - y.s1 - (x.s2 - x.s1)) };
   }, [data]);
 
+  // Mapa das UFs: quem está à frente, quanto já foi apurado e quem ganhou terreno desde o 1º turno.
+  const ufMap = useMemo(() => {
+    const ufs = (data?.byUf ?? []).filter((u) => u.uf !== "ZZ");
+    const started = ufs.filter((u) => u.r2.pct > 0 || u.r2.a + u.r2.b > 0);
+    const shades: UfShade[] = ufs.map((u) => {
+      const has = u.r2.a + u.r2.b > 0;
+      const s2 = shareA(u.r2.a, u.r2.b);
+      const ref = u.r1SamePoint ?? (u.r1.a + u.r1.b > 0 ? u.r1 : null);
+      const d = ref && has ? (s2 - shareA(ref.a, ref.b)) * 2 : null;
+      const lines = [
+        `<strong>${esc(u.name)}</strong> · ${formatPct(u.r2.pct)} das urnas apuradas`,
+        has ? `${esc(nameA)} ${formatPct(s2)} · ${esc(nameB)} ${formatPct(100 - s2)}` : "Sem urnas apuradas no 2º turno",
+        has ? `${formatInt(u.r2.a)} × ${formatInt(u.r2.b)} votos` : "",
+        ref && has
+          ? `1º turno${u.r1SamePoint ? " no mesmo ponto" : " (final)"}: ${esc(nameA)} ${formatPct(shareA(ref.a, ref.b))} · ${esc(nameB)} ${formatPct(100 - shareA(ref.a, ref.b))}`
+          : "",
+        d !== null ? `<strong>${esc(d >= 0 ? nameA : nameB)} ganhou ${pp(Math.abs(d))}</strong>` : "",
+      ].filter(Boolean);
+      let fill: string | null = null;
+      let opacity = 0;
+      if (mapMode === "apurado") {
+        fill = u.r2.pct > 0 ? "#0f766e" : null;
+        opacity = 0.12 + 0.78 * (u.r2.pct / 100);
+      } else if (mapMode === "lider" && has) {
+        fill = s2 >= 50 ? colorA : colorB;
+        opacity = 0.3 + Math.min(0.6, (Math.abs(s2 - 50) * 2) / 40);
+      } else if (mapMode === "terreno" && d !== null) {
+        fill = d >= 0 ? colorA : colorB;
+        opacity = 0.2 + Math.min(0.7, Math.abs(d) / 10);
+      }
+      return { uf: u.uf, fill, opacity, html: lines.join("<br>") };
+    });
+    return {
+      shades,
+      started: started.length,
+      done: ufs.filter((u) => u.r2.pct >= 100).length,
+      leadA: ufs.filter((u) => u.r2.a + u.r2.b > 0 && u.r2.a >= u.r2.b).length,
+      leadB: ufs.filter((u) => u.r2.a + u.r2.b > 0 && u.r2.b > u.r2.a).length,
+      exterior: (data?.byUf ?? []).find((u) => u.uf === "ZZ") ?? null,
+    };
+  }, [data, mapMode, nameA, nameB, colorA, colorB]);
+
   const scopeName = state === "BR" ? "Brasil" : state === "ZZ" ? "Exterior" : (STATES.find((s) => s.uf === state)?.name ?? state);
 
   return (
@@ -197,6 +251,7 @@ export function SecondRoundView() {
           {error}
         </p>
       )}
+      {data?.link && <TseLinkBox link={data.link} />}
       {data && !data.secondRoundEnabled && (
         <p className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-2 text-sm">
           O acompanhamento do 2º turno está desligado (SECOND_ROUND=false no .env).
@@ -294,6 +349,74 @@ export function SecondRoundView() {
               Sem a evolução do 1º turno guardada para esta disputa (o sistema só guarda a apuração enquanto está aberto). A
               comparação usa o resultado final do 1º turno.
             </p>
+          )}
+
+          {office === "presidente" && state === "BR" && ufMap.shades.length > 0 && (
+            <div className="space-y-2 rounded-xl border border-border bg-surface p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-semibold">Mapa da apuração por estado</h2>
+                <span className="text-sm text-muted">
+                  {ufMap.started} de 27 estados com urnas apuradas · {ufMap.done} com 100% · à frente: {nameA} em {ufMap.leadA}, {nameB}{" "}
+                  em {ufMap.leadB}
+                </span>
+                <span className="ml-auto flex overflow-hidden rounded-full border border-border text-sm">
+                  {(
+                    [
+                      ["lider", "Quem está à frente"],
+                      ["apurado", "% apurado"],
+                      ["terreno", "Ganho sobre o 1º turno"],
+                    ] as const
+                  ).map(([m, label]) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMapMode(m)}
+                      aria-pressed={mapMode === m}
+                      className={`px-3 py-1 ${mapMode === m ? "bg-accent text-white" : "hover:text-accent"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </span>
+              </div>
+              <UfMap shades={ufMap.shades} onPick={(uf) => setState(uf)} />
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
+                {mapMode === "apurado" ? (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="inline-block h-2.5 w-16 rounded" style={{ background: "linear-gradient(90deg, rgba(15,118,110,.12), rgba(15,118,110,.9))" }} />
+                    0% → 100% das urnas apuradas
+                  </span>
+                ) : (
+                  [
+                    { name: nameA, color: colorA },
+                    { name: nameB, color: colorB },
+                  ].map((c) => (
+                    <span key={c.name} className="inline-flex items-center gap-1">
+                      <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: c.color }} />
+                      {mapMode === "lider" ? `${c.name} à frente` : `${c.name} ganhou terreno`}
+                    </span>
+                  ))
+                )}
+                <span className="inline-flex items-center gap-1">
+                  <span className="inline-block h-2.5 w-2.5 rounded-sm bg-slate-300" />
+                  sem urnas apuradas
+                </span>
+                {mapMode !== "apurado" && <span>cor mais forte = {mapMode === "lider" ? "vantagem maior" : "mudança maior"}</span>}
+                <span className="ml-auto">Clique num estado para ver o gráfico dele.</span>
+              </div>
+              {ufMap.exterior && (
+                <p className="text-xs text-muted">
+                  <strong>Exterior</strong> (fora do mapa): {formatPct(ufMap.exterior.r2.pct)} apurado
+                  {ufMap.exterior.r2.a + ufMap.exterior.r2.b > 0
+                    ? ` · ${nameA} ${formatPct(shareA(ufMap.exterior.r2.a, ufMap.exterior.r2.b))} · ${nameB} ${formatPct(100 - shareA(ufMap.exterior.r2.a, ufMap.exterior.r2.b))}`
+                    : " · o TSE divulga depois das 17h de Brasília"}
+                  .{" "}
+                  <button type="button" className="underline hover:text-accent" onClick={() => setState("ZZ")}>
+                    ver gráfico
+                  </button>
+                </p>
+              )}
+            </div>
           )}
 
           {ufCompare.rows.length > 0 && (

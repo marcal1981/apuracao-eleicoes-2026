@@ -113,6 +113,15 @@ export function GET(req: NextRequest) {
       r1Series: series(main.getHistory(raceKey(1, office, scope)), r1, a, b),
       r2Series: r2ing ? series(r2ing.getHistory(raceKey(2, office, scope)), r2, a, b) : [],
       byUf,
+      // Ligação com o TSE do acompanhamento do 2º turno (para a página avisar se algo não está chegando).
+      link: r2ing
+        ? {
+            ...r2ing.getStatus(),
+            ...r2ing.getLinkDiagnostics(),
+            electionCodes: r2ing.config.electionCodes,
+            now: new Date().toISOString(),
+          }
+        : null,
     },
     { maxAge: 10 },
   );
