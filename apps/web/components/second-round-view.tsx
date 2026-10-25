@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { STATES, formatInt, formatPct, formatTimeBrasilia } from "@apuracao/core";
 
 interface Point {
@@ -233,11 +233,16 @@ export function SecondRoundView() {
                       {ahead(leadNow! - leadSamePoint)} ganhou {pp(Math.abs(leadNow! - leadSamePoint))}
                     </strong>{" "}
                     em relação ao 1º turno.
+                    <span className="mt-1 block text-sm text-muted">
+                      Agora: {nameA} {formatPct(shareA(r2.a, r2.b))} · {nameB} {formatPct(100 - shareA(r2.a, r2.b))}. No 1º turno, no
+                      mesmo ponto: {nameA} {formatPct(50 + leadSamePoint / 2)} · {nameB} {formatPct(50 - leadSamePoint / 2)}.
+                    </span>
                   </>
                 ) : leadR1Final !== null ? (
                   <>
                     O sistema não tem a evolução do 1º turno neste ponto; no resultado final do 1º turno (entre os dois),{" "}
-                    {ahead(leadR1Final)} teve {pp(Math.abs(leadR1Final))} de vantagem.
+                    {ahead(leadR1Final)} teve {pp(Math.abs(leadR1Final))} de vantagem ({nameA} {formatPct(50 + leadR1Final / 2)} ·{" "}
+                    {nameB} {formatPct(50 - leadR1Final / 2)}).
                   </>
                 ) : null}
               </p>
@@ -267,6 +272,11 @@ export function SecondRoundView() {
             <div>
               <dt className="text-xs text-muted">Vantagem no fim do 1º turno</dt>
               <dd className="text-lg font-bold">{leadR1Final !== null ? `${ahead(leadR1Final)} +${pp(Math.abs(leadR1Final))}` : "—"}</dd>
+              {leadR1Final !== null && (
+                <dd className="text-xs text-muted">
+                  {nameA} {formatPct(50 + leadR1Final / 2)} · {nameB} {formatPct(50 - leadR1Final / 2)} (só entre os dois)
+                </dd>
+              )}
             </div>
           </dl>
 
@@ -290,8 +300,9 @@ export function SecondRoundView() {
             <>
               <div className="rounded-xl border border-border bg-surface p-4 text-sm">
                 <strong>Somando as UFs, cada uma comparada com o seu próprio 1º turno:</strong>{" "}
-                {ufCompare.allSamePoint ? "no mesmo ponto da apuração" : "no mesmo ponto da apuração quando há histórico, ou no resultado final"}, {nameA}{" "}
-                teria {formatPct(ufCompare.expected!)} entre os dois; tem {formatPct(ufCompare.actual!)} —{" "}
+                {ufCompare.allSamePoint ? "no mesmo ponto da apuração" : "no mesmo ponto da apuração quando há histórico, ou no resultado final"},{" "}
+                {nameA} teria {formatPct(ufCompare.expected!)} e tem {formatPct(ufCompare.actual!)}; {nameB} teria{" "}
+                {formatPct(100 - ufCompare.expected!)} e tem {formatPct(100 - ufCompare.actual!)} —{" "}
                 <strong style={{ color: ufCompare.actual! - ufCompare.expected! >= 0 ? colorA : colorB }}>
                   {ufCompare.actual! - ufCompare.expected! >= 0 ? nameA : nameB} ganhou {pp(Math.abs(ufCompare.actual! - ufCompare.expected!) * 2)}
                 </strong>{" "}
@@ -304,9 +315,17 @@ export function SecondRoundView() {
                     <tr className="border-b border-border">
                       <th className="px-3 py-2">UF</th>
                       <th className="px-3 py-2 text-right">Apurado (2º turno)</th>
-                      <th className="px-3 py-2 text-right">{nameA} no 1º turno*</th>
-                      <th className="px-3 py-2 text-right">{nameA} no 2º turno</th>
-                      <th className="px-3 py-2 text-right">Variação</th>
+                      {[
+                        { name: nameA, color: colorA },
+                        { name: nameB, color: colorB },
+                      ].map((c) => (
+                        <th key={c.name} className="px-3 py-2 text-right" colSpan={2}>
+                          <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: c.color }} />
+                          {c.name}
+                          <span className="block font-normal">1º turno* · 2º turno</span>
+                        </th>
+                      ))}
+                      <th className="px-3 py-2 text-right">Quem ganhou terreno</th>
                       <th className="px-3 py-2">À frente agora</th>
                     </tr>
                   </thead>
@@ -317,14 +336,24 @@ export function SecondRoundView() {
                         <tr key={u.uf} className="border-b border-border last:border-0">
                           <td className="px-3 py-2 font-medium">{u.name}</td>
                           <td className="px-3 py-2 text-right">{formatPct(u.r2.pct)}</td>
-                          <td className="px-3 py-2 text-right">
-                            {formatPct(u.s1)}
-                            {!u.samePoint && <span className="ml-1 text-xs text-muted" title="Sem a evolução do 1º turno desta UF: comparado com o resultado final">(final)</span>}
-                          </td>
-                          <td className="px-3 py-2 text-right font-semibold">{formatPct(u.s2)}</td>
-                          <td className="px-3 py-2 text-right font-semibold" style={{ color: d >= 0 ? colorA : colorB }}>
-                            {d >= 0 ? "+" : "−"}
-                            {Math.abs(d).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                          {[
+                            { s1: u.s1, s2: u.s2 },
+                            { s1: 100 - u.s1, s2: 100 - u.s2 },
+                          ].map((c, i) => (
+                            <Fragment key={i}>
+                              <td className="px-3 py-2 text-right">
+                                {formatPct(c.s1)}
+                                {!u.samePoint && (
+                                  <span className="ml-1 text-xs text-muted" title="Sem a evolução do 1º turno desta UF: comparado com o resultado final">
+                                    (final)
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-right font-semibold">{formatPct(c.s2)}</td>
+                            </Fragment>
+                          ))}
+                          <td className="whitespace-nowrap px-3 py-2 text-right font-semibold" style={{ color: d >= 0 ? colorA : colorB }}>
+                            {d >= 0 ? nameA : nameB} +{Math.abs(d * 2).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                           </td>
                           <td className="px-3 py-2">
                             <span className="inline-flex items-center gap-1 text-xs font-semibold">
@@ -339,9 +368,9 @@ export function SecondRoundView() {
                 </table>
               </div>
               <p className="text-xs text-muted">
-                * Percentual de {nameA} considerando só os votos dos dois finalistas, no 1º turno da UF com o mesmo % apurado
-                que ela tem agora no 2º turno (&quot;final&quot; quando o sistema não guardou a evolução do 1º turno). Variação em
-                pontos percentuais.
+                * Percentual de {nameA} e de {nameB} considerando só os votos dos dois finalistas, no 1º turno da UF com o mesmo % apurado
+                que ela tem agora no 2º turno (&quot;final&quot; quando o sistema não guardou a evolução do 1º turno). &quot;Quem ganhou
+                terreno&quot;: quanto a vantagem entre os dois mudou, em pontos — a mesma conta da frase e do gráfico.
               </p>
             </>
           )}
@@ -388,6 +417,10 @@ function LeadChart({
   const fmtX = (x: number) => (axis === "pct" ? `${Math.round(x)}%` : hhmm(x));
   const fmtLead = (v: number | null) =>
     v === null ? "—" : `${v >= 0 ? nameA : nameB} +${Math.abs(v).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+
+  // Percentual de cada um entre os dois, a partir da vantagem: A = 50 + v/2, B = 50 − v/2.
+  const fmtShares = (v: number) =>
+    `${nameA} ${(50 + v / 2).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% · ${nameB} ${(50 - v / 2).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
 
   const onMove = (e: React.PointerEvent) => {
     const rect = svg.current!.getBoundingClientRect();
@@ -467,8 +500,14 @@ function LeadChart({
             style={{ left: `${Math.min(70, Math.max(2, (sx(hover) / W) * 100))}%` }}
           >
             <div className="font-semibold">{axis === "pct" ? `${fmtX(hover)} apurado` : `às ${fmtX(hover)}`}</div>
-            <div>2º turno: {fmtLead(h2)}</div>
-            <div className="text-muted">1º turno: {fmtLead(h1)}</div>
+            <div>
+              2º turno: {fmtLead(h2)}
+              {h2 !== null && <span className="text-muted"> ({fmtShares(h2)})</span>}
+            </div>
+            <div className="text-muted">
+              1º turno: {fmtLead(h1)}
+              {h1 !== null && <> ({fmtShares(h1)})</>}
+            </div>
             {h1 !== null && h2 !== null && (
               <div className="font-semibold" style={{ color: h2 - h1 >= 0 ? colorA : colorB }}>
                 {h2 - h1 >= 0 ? nameA : nameB} ganhou {Math.abs(h2 - h1).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} pts
