@@ -91,7 +91,7 @@ export function GET(req: NextRequest) {
           return {
             uf: s.uf,
             name: s.name,
-            r1: { a: votesOf(u1, a), b: votesOf(u1, b), pct: u1?.sectionsTotalizedPct ?? 0 },
+            r1: { a: votesOf(u1, a), b: votesOf(u1, b), pct: u1?.sectionsTotalizedPct ?? 0, valid: u1?.totals.valid ?? 0 },
             r1SamePoint: same,
             r2: { a: votesOf(u2, a), b: votesOf(u2, b), pct: u2?.sectionsTotalizedPct ?? 0 },
           };

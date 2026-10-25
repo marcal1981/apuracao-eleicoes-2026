@@ -36,7 +36,7 @@ interface Data {
   byUf: {
     uf: string;
     name: string;
-    r1: { a: number; b: number; pct: number };
+    r1: { a: number; b: number; pct: number; valid: number };
     /** 1º turno da UF no mesmo % apurado do 2º turno; null quando a evolução não foi guardada. */
     r1SamePoint: { a: number; b: number } | null;
     r2: { a: number; b: number; pct: number };
@@ -152,6 +152,8 @@ export function SecondRoundView() {
     const actual = votes > 0 ? (rows.reduce((s, u) => s + u.r2.a, 0) / votes) * 100 : null;
     return { expected, actual, allSamePoint: rows.every((u) => u.samePoint), rows: rows.sort((x, y) => y.s2 - y.s1 - (x.s2 - x.s1)) };
   }, [data]);
+
+  const projection = useMemo(() => projectFinal(data?.byUf ?? []), [data]);
 
   // Mapa das UFs: quem está à frente, quanto já foi apurado e quem ganhou terreno desde o 1º turno.
   const ufMap = useMemo(() => {
@@ -322,6 +324,10 @@ export function SecondRoundView() {
             )}
           </div>
 
+          {projection && r2 && r2.pct < 100 && (
+            <ProjectionCard p={projection} nameA={nameA} nameB={nameB} colorA={colorA} colorB={colorB} leadNow={leadNow!} />
+          )}
+
           <dl className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-4">
             {[
               { f: A!, color: colorA, v2: r2?.a ?? 0, v1: r1?.a ?? 0 },
@@ -466,7 +472,22 @@ export function SecondRoundView() {
                           <span className="block font-normal">1º turno* · 2º turno</span>
                         </th>
                       ))}
-                      <th className="px-3 py-2 text-right">Quem ganhou terreno</th>
+                      {[
+                        { name: nameA, color: colorA },
+                        { name: nameB, color: colorB },
+                      ].map((c) => (
+                        <th key={`t-${c.name}`} className="px-3 py-2 text-right">
+                          <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: c.color }} />
+                          Terreno {c.name}
+                          <span className="block font-normal">pontos × 1º turno</span>
+                        </th>
+                      ))}
+                      <th className="px-3 py-2 text-right">
+                        Projeção ao fim
+                        <span className="block font-normal">
+                          {nameA} × {nameB}
+                        </span>
+                      </th>
                       <th className="px-3 py-2">À frente agora</th>
                     </tr>
                   </thead>
@@ -493,8 +514,24 @@ export function SecondRoundView() {
                               <td className="px-3 py-2 text-right font-semibold">{formatPct(c.s2)}</td>
                             </Fragment>
                           ))}
-                          <td className="whitespace-nowrap px-3 py-2 text-right font-semibold" style={{ color: d >= 0 ? colorA : colorB }}>
-                            {d >= 0 ? nameA : nameB} +{Math.abs(d * 2).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                          {[
+                            { v: d * 2, color: colorA },
+                            { v: -d * 2, color: colorB },
+                          ].map((t, i) => (
+                            <td
+                              key={`t${i}`}
+                              className="whitespace-nowrap px-3 py-2 text-right font-semibold"
+                              style={{ color: t.v > 0 ? t.color : "var(--muted)" }}
+                            >
+                              {t.v > 0 ? "+" : t.v < 0 ? "−" : ""}
+                              {Math.abs(t.v).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                            </td>
+                          ))}
+                          <td className="whitespace-nowrap px-3 py-2 text-right text-xs">
+                            {(() => {
+                              const pu = projection?.byUf.get(u.uf);
+                              return pu ? `${formatPct(pu.shareA)} × ${formatPct(100 - pu.shareA)}` : "—";
+                            })()}
                           </td>
                           <td className="px-3 py-2">
                             <span className="inline-flex items-center gap-1 text-xs font-semibold">
@@ -510,14 +547,162 @@ export function SecondRoundView() {
               </div>
               <p className="text-xs text-muted">
                 * Percentual de {nameA} e de {nameB} considerando só os votos dos dois finalistas, no 1º turno da UF com o mesmo % apurado
-                que ela tem agora no 2º turno (&quot;final&quot; quando o sistema não guardou a evolução do 1º turno). &quot;Quem ganhou
-                terreno&quot;: quanto a vantagem entre os dois mudou, em pontos — a mesma conta da frase e do gráfico.
+                que ela tem agora no 2º turno (&quot;final&quot; quando o sistema não guardou a evolução do 1º turno). &quot;Terreno&quot;:
+                quanto a vantagem de cada um mudou em relação ao 1º turno, em pontos (positivo = ganhou, negativo = perdeu) — a mesma conta
+                da frase e do gráfico. &quot;Projeção ao fim&quot;: estimativa de como a UF termina, explicada no quadro de projeção.
               </p>
             </>
           )}
         </>
       )}
     </section>
+  );
+}
+
+type ByUf = Data["byUf"][number];
+
+interface Projection {
+  /** % de A (entre os dois) projetado ao fim da apuração. */
+  shareA: number;
+  /** desvio estimado da projeção, em pontos de % de A. */
+  sd: number;
+  /** chance de A terminar à frente (0–1). */
+  chanceA: number;
+  /** fração dos votos que ainda falta apurar (estimada). */
+  remaining: number;
+  byUf: Map<string, { shareA: number }>;
+}
+
+/** Função de distribuição da normal padrão (aproximação de Abramowitz-Stegun). */
+function normCdf(z: number) {
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const d = 0.3989423 * Math.exp((-z * z) / 2);
+  const p = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+  return z > 0 ? 1 - p : p;
+}
+
+/**
+ * Projeção do resultado final do Presidente a partir das UFs (inclui o exterior):
+ * - votos que faltam em cada UF: estimados pelo ritmo atual (ou pelo 1º turno, no começo da apuração);
+ * - como esses votos devem se dividir: o que faltava apurar na própria UF no 1º turno (a partir do mesmo % apurado),
+ *   corrigido pelo terreno que cada finalista já ganhou ali; sem essa evolução, o % atual da UF;
+ *   UF que ainda não começou: o 1º turno dela mais o terreno médio já observado no país.
+ * A chance vem de uma margem de erro que encolhe conforme a apuração avança. É estimativa, não pesquisa.
+ */
+function projectFinal(byUf: ByUf[]): Projection | null {
+  const started = byUf.filter((u) => u.r2.a + u.r2.b > 0);
+  if (started.length === 0) return null;
+  // Terreno médio (pontos de % de A) nas UFs já com votos, ponderado pelos votos.
+  let sw = 0;
+  let sv = 0;
+  for (const u of started) {
+    const ref = u.r1SamePoint ?? (u.r1.a + u.r1.b > 0 ? u.r1 : null);
+    if (!ref) continue;
+    const v = u.r2.a + u.r2.b;
+    sw += (shareA(u.r2.a, u.r2.b) - shareA(ref.a, ref.b)) * v;
+    sv += v;
+  }
+  const swing = sv > 0 ? sw / sv : 0;
+
+  let totalA = 0;
+  let total = 0;
+  let remainingVotes = 0;
+  let varIndep = 0;
+  const parts: { rem: number }[] = [];
+  const out = new Map<string, { shareA: number }>();
+  for (const u of byUf) {
+    const now = u.r2.a + u.r2.b;
+    // Votos válidos dos dois esperados ao fim: pelo ritmo atual (com 10% ou mais apurado) ou pelo 1º turno.
+    const fromPace = u.r2.pct >= 10 ? now / (u.r2.pct / 100) : 0;
+    const fromR1 = u.r1.valid > 0 ? u.r1.valid * 0.97 : u.r1.a + u.r1.b;
+    const expected = Math.max(now, fromPace || fromR1);
+    if (expected <= 0) continue;
+    const rem = u.r2.pct >= 100 ? 0 : Math.max(0, expected - now);
+    let restA: number;
+    if (now > 0 && u.r1SamePoint && u.r1.a + u.r1.b > u.r1SamePoint.a + u.r1SamePoint.b) {
+      const ra = u.r1.a - u.r1SamePoint.a;
+      const rb = u.r1.b - u.r1SamePoint.b;
+      restA = shareA(ra, rb) + (shareA(u.r2.a, u.r2.b) - shareA(u.r1SamePoint.a, u.r1SamePoint.b));
+    } else if (now > 0) {
+      restA = shareA(u.r2.a, u.r2.b);
+    } else {
+      restA = shareA(u.r1.a, u.r1.b) + swing;
+    }
+    restA = Math.min(100, Math.max(0, restA));
+    const finalA = u.r2.a + (rem * restA) / 100;
+    out.set(u.uf, { shareA: (finalA / (now + rem)) * 100 });
+    totalA += finalA;
+    total += now + rem;
+    remainingVotes += rem;
+    parts.push({ rem });
+  }
+  if (total <= 0) return null;
+  // Incerteza: 4 pontos por UF (independente) + 2 pontos comuns a todas, sobre a fração ainda não apurada.
+  for (const p of parts) varIndep += ((p.rem / total) * 4) ** 2;
+  const remaining = remainingVotes / total;
+  const sd = Math.sqrt(varIndep + (remaining * 2) ** 2);
+  const shareAFinal = (totalA / total) * 100;
+  const chanceA = sd < 1e-6 ? (shareAFinal >= 50 ? 1 : 0) : normCdf((shareAFinal - 50) / sd);
+  return { shareA: shareAFinal, sd, chanceA, remaining, byUf: out };
+}
+
+/** Projeção ao fim e chance de cada finalista terminar à frente (inclusive a de virada de quem está atrás). */
+function ProjectionCard({
+  p,
+  nameA,
+  nameB,
+  colorA,
+  colorB,
+  leadNow,
+}: {
+  p: Projection;
+  nameA: string;
+  nameB: string;
+  colorA: string;
+  colorB: string;
+  leadNow: number;
+}) {
+  const chance = (v: number) => (v > 0.995 ? "> 99%" : v < 0.005 ? "< 1%" : `${Math.round(v * 100)}%`);
+  const behind = leadNow >= 0 ? { name: nameB, chance: 1 - p.chanceA, color: colorB } : { name: nameA, chance: p.chanceA, color: colorA };
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <h2 className="text-base font-semibold">Projeção ao fim da apuração</h2>
+        <span className="text-xs text-muted">faltam cerca de {formatPct(p.remaining * 100)} dos votos · estimativa, não é pesquisa</span>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { name: nameA, color: colorA, share: p.shareA, chance: p.chanceA },
+          { name: nameB, color: colorB, share: 100 - p.shareA, chance: 1 - p.chanceA },
+        ].map((c) => (
+          <Fragment key={c.name}>
+            <div>
+              <div className="flex items-center gap-2 text-xs text-muted">
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />
+                {c.name} — projeção
+              </div>
+              <div className="text-2xl font-bold">{formatPct(c.share)}</div>
+              <div className="text-xs text-muted">± {pp(p.sd * 1.96).replace(" pontos", "")} (95%)</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted">Chance de {c.name} terminar à frente</div>
+              <div className="text-2xl font-bold" style={{ color: c.color }}>
+                {chance(c.chance)}
+              </div>
+            </div>
+          </Fragment>
+        ))}
+      </div>
+      <p className="mt-2 text-sm">
+        Chance de virada de <strong style={{ color: behind.color }}>{behind.name}</strong> (hoje atrás):{" "}
+        <strong style={{ color: behind.color }}>{chance(behind.chance)}</strong>.
+      </p>
+      <p className="mt-1 text-xs text-muted">
+        Como é feita: em cada estado, os votos que faltam são divididos como o restante do 1º turno daquele estado se dividiu a partir
+        do mesmo ponto, corrigido pelo terreno que cada um já ganhou ali; estados que ainda não começaram seguem o 1º turno mais o terreno
+        médio do país. A margem de erro encolhe conforme a apuração avança.
+      </p>
+    </div>
   );
 }
 
