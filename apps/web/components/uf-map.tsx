@@ -32,8 +32,10 @@ export function UfMap({ shades, onPick }: { shades: UfShade[]; onPick?: (uf: str
         color: "#ffffff",
         weight: 1,
       });
-      path.unbindTooltip();
-      path.bindTooltip(s?.html ?? `<strong>${path.feature?.properties.name ?? uf}</strong><br>Sem urnas apuradas`, { sticky: true });
+      // Atualiza só o texto do balão (recriá-lo fazia o balão aberto piscar a cada atualização).
+      const html = s?.html ?? `<strong>${path.feature?.properties.name ?? uf}</strong><br>Sem urnas apuradas`;
+      if (path.getTooltip()) path.setTooltipContent(html);
+      else path.bindTooltip(html, { sticky: true });
     });
   };
 

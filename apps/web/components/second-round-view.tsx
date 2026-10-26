@@ -90,6 +90,8 @@ export function SecondRoundView() {
   const [state, setState] = useState("BR");
   const [axis, setAxis] = useState<Axis>("pct");
   const [mapMode, setMapMode] = useState<MapMode>("lider");
+  // Ordem da tabela por UF: por terreno (muda a cada atualização) ou fixa, em ordem alfabética.
+  const [ufSort, setUfSort] = useState<"terreno" | "nome">("terreno");
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -150,8 +152,13 @@ export function SecondRoundView() {
     const votes = rows.reduce((s, u) => s + u.r2.a + u.r2.b, 0);
     const expected = votes > 0 ? rows.reduce((s, u) => s + u.s1 * (u.r2.a + u.r2.b), 0) / votes : null;
     const actual = votes > 0 ? (rows.reduce((s, u) => s + u.r2.a, 0) / votes) * 100 : null;
-    return { expected, actual, allSamePoint: rows.every((u) => u.samePoint), rows: rows.sort((x, y) => y.s2 - y.s1 - (x.s2 - x.s1)) };
-  }, [data]);
+    return {
+      expected,
+      actual,
+      allSamePoint: rows.every((u) => u.samePoint),
+      rows: rows.sort((x, y) => (ufSort === "nome" ? x.name.localeCompare(y.name, "pt-BR") : y.s2 - y.s1 - (x.s2 - x.s1))),
+    };
+  }, [data, ufSort]);
 
   const projection = useMemo(() => projectFinal(data?.byUf ?? []), [data]);
 
@@ -455,6 +462,20 @@ export function SecondRoundView() {
                 </strong>{" "}
                 de vantagem. Como cada estado é comparado com ele mesmo, essa conta não é afetada por alguns estados apurarem mais
                 rápido que outros.
+              </div>
+              <div className="flex items-center justify-end gap-2 text-sm">
+                <label htmlFor="uf-sort" className="text-muted">
+                  Ordenar estados:
+                </label>
+                <select
+                  id="uf-sort"
+                  value={ufSort}
+                  onChange={(e) => setUfSort(e.target.value as "terreno" | "nome")}
+                  className="rounded-lg border border-border bg-surface px-2 py-1"
+                >
+                  <option value="terreno">por terreno (muda a cada atualização)</option>
+                  <option value="nome">em ordem alfabética (fixa)</option>
+                </select>
               </div>
               <div className="overflow-x-auto rounded-xl border border-border bg-surface">
                 <table className="w-full text-sm">
@@ -803,7 +824,8 @@ export function LeadChart({
   const all = [...s1, ...s2];
   const xMin = axis === "pct" ? 0 : Math.min(17 * 60, ...all.map((p) => p.x));
   const xMax = axis === "pct" ? 100 : Math.max(xMin + 60, ...all.map((p) => p.x));
-  const yAbs = Math.max(5, ...all.map((p) => Math.abs(p.y))) * 1.15;
+  // Escala em degraus de 5 pontos: só muda quando a vantagem passa de um degrau, para o gráfico não "balançar" a cada atualização.
+  const yAbs = Math.ceil((Math.max(4, ...all.map((p) => Math.abs(p.y))) * 1.1) / 5) * 5;
   const sx = (x: number) => pad.l + ((x - xMin) / (xMax - xMin)) * (W - pad.l - pad.r);
   const sy = (y: number) => pad.t + ((yAbs - y) / (2 * yAbs)) * (H - pad.t - pad.b);
   const path = (s: { x: number; y: number }[]) => s.map((p, i) => `${i ? "L" : "M"}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join(" ");
