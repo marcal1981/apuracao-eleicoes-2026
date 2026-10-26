@@ -16,18 +16,23 @@ import {
 import { USER_AGENT, type Ingestor } from "./ingestor";
 import type { MunicipalityRegistry } from "./municipal";
 
-let pleitoCache: string | null = process.env.TSE_PLEITO || null;
+/** Pleito já encontrado, por código de eleição (cada turno tem o seu: 2026 → 3220 e 3221). */
+const pleitoCache = new Map<string, string>();
 
-/** Código do pleito (turno) no TSE, lido do ele-c.json (ou TSE_PLEITO no .env). */
+/** Código do pleito (turno) no TSE, lido do ele-c.json (ou TSE_PLEITO / TSE_PLEITO_R2 no .env). */
 export async function resolvePleito(ingestor: Ingestor): Promise<string> {
-  if (pleitoCache) return pleitoCache;
+  const fromEnv = ingestor.config.round === 2 ? process.env.TSE_PLEITO_R2 : process.env.TSE_PLEITO;
+  if (fromEnv) return fromEnv;
+  const election = electionCodeFor(ingestor.config.electionCodes, "governador");
+  const cached = pleitoCache.get(election);
+  if (cached) return cached;
   const url = electionConfigUrl(ingestor.config.endpoint);
   const res = await ingestor.httpGet(url, undefined, 30_000);
   if (res.kind !== "new") throw new Error(`configuração de eleições não disponível no TSE (${url})`);
-  const election = electionCodeFor(ingestor.config.electionCodes, "governador");
   const pleito = findPleitoCode(JSON.parse(res.body), election);
   if (!pleito) throw new Error(`pleito da eleição ${election} não encontrado em ${url} (defina TSE_PLEITO no .env)`);
-  return (pleitoCache = pleito);
+  pleitoCache.set(election, pleito);
+  return pleito;
 }
 
 /** Código TSE do município pelo nome. */

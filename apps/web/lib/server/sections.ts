@@ -93,7 +93,7 @@ const keyOf = (s: SectionRef) => `${s.zone}-${s.section}`;
 export class SectionAbstentionTracker {
   private readonly sections = new Map<string, SectionAbstention>();
   private refs: SectionRef[] = [];
-  private pleito: string | null = process.env.TSE_PLEITO || null;
+  private pleito: string | null;
   private progress = { running: false, done: 0, total: 0, failures: 0, lastError: null as string | null };
   private sample: SectionsSnapshot["sample"] = { aux: null, bu: null };
   private updatedAt: string | null = null;
@@ -114,7 +114,10 @@ export class SectionAbstentionTracker {
     private readonly featured: () => FeaturedCandidate[] = () => [],
   ) {
     this.mock = ingestor.config.source === "mock";
-    this.cacheFile = path.join(ingestor.config.dataDir, "cities", `secoes-${slug}${this.mock ? "-mock" : ""}.json`);
+    // O 2º turno tem pleito e boletins próprios: arquivo de cache separado.
+    const round = ingestor.config.round === 2 ? "-t2" : "";
+    this.pleito = (ingestor.config.round === 2 ? process.env.TSE_PLEITO_R2 : process.env.TSE_PLEITO) || null;
+    this.cacheFile = path.join(ingestor.config.dataDir, "cities", `secoes-${slug}${round}${this.mock ? "-mock" : ""}.json`);
     this.loaded = this.loadCache();
     this.places = new PollingPlaces(ingestor, uf, slug);
   }
@@ -323,7 +326,11 @@ export class SectionAbstentionTracker {
       abstentionPct: pct(abstention, electorate),
       done: true,
       votes: Object.fromEntries(this.featured().map((c, i) => [c.number, (seed * (i + 7) * 31) % (i === 0 ? 40 : 12)])),
-      presVotes: { "13": 60 + (seed % 70), "22": 50 + ((seed * 7) % 80), "15": (seed * 3) % 25, branco: seed % 9, nulo: (seed * 5) % 11 },
+      presVotes:
+        this.ingestor.config.round === 2
+          ? // 2º turno simulado: os votos do 3º colocado se dividem, com variação por seção (alguns bairros viram).
+            { "13": 60 + (seed % 70) + ((seed * 11) % 25), "22": 50 + ((seed * 7) % 80) + ((seed * 13) % 22), branco: seed % 7, nulo: (seed * 5) % 9 }
+          : { "13": 60 + (seed % 70), "22": 50 + ((seed * 7) % 80), "15": (seed * 3) % 25, branco: seed % 9, nulo: (seed * 5) % 11 },
       votesKey: this.votesKey(),
     });
     return true;

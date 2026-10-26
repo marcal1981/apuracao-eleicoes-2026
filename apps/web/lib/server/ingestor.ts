@@ -447,6 +447,7 @@ const GLOBAL_KEY = Symbol.for("apuracao.ingestor");
 const CITIES_KEY = Symbol.for("apuracao.candidate-cities");
 const ABSTENTION_KEY = Symbol.for("apuracao.abstention");
 const SECTIONS_KEY = Symbol.for("apuracao.sections");
+const SECTIONS_R2_KEY = Symbol.for("apuracao.sections-r2");
 const REGISTRIES_KEY = Symbol.for("apuracao.registries");
 const EXTERIOR_KEY = Symbol.for("apuracao.exterior");
 
@@ -489,6 +490,16 @@ export function getIngestor(): Ingestor {
     }
     // 2º turno em paralelo (desde o início, para guardar toda a evolução da apuração).
     getSecondRoundIngestor();
+    // Boletins de urna do 2º turno nas mesmas cidades (Presidente por bairro, 1º × 2º turno).
+    const r2 = getSecondRoundIngestor();
+    const sectionsR2 = new Map<string, SectionAbstentionTracker>();
+    if (r2) {
+      for (const c of SECTION_CITIES) {
+        const reg = registries.get(c.uf);
+        if (reg) sectionsR2.set(c.slug, new SectionAbstentionTracker(r2, reg, c.uf, c.city, c.slug));
+      }
+    }
+    g[SECTIONS_R2_KEY] = sectionsR2;
     // Presidente nas cidades do exterior, 1º e 2º turnos (aba "Exterior").
     const exterior = new ExteriorTracker(instance, getSecondRoundIngestor);
     g[EXTERIOR_KEY] = exterior;
@@ -541,9 +552,11 @@ export function getAbstentionTracker(uf: string): AbstentionTracker | undefined 
   return trackers?.get(uf.toLowerCase());
 }
 
-export function getSectionTracker(slug: string): SectionAbstentionTracker | undefined {
+export function getSectionTracker(slug: string, round: 1 | 2 = 1): SectionAbstentionTracker | undefined {
   getIngestor();
-  const trackers = (globalThis as unknown as Record<symbol, Map<string, SectionAbstentionTracker> | undefined>)[SECTIONS_KEY];
+  const trackers = (globalThis as unknown as Record<symbol, Map<string, SectionAbstentionTracker> | undefined>)[
+    round === 2 ? SECTIONS_R2_KEY : SECTIONS_KEY
+  ];
   return trackers?.get(slug.toLowerCase());
 }
 

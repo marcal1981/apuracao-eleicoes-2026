@@ -62,6 +62,7 @@ export function OfficeNav() {
       {[
         { href: "/segundo-turno", label: "2º turno ao vivo" },
         { href: "/segundo-turno/cidade", label: "2º turno SJC" },
+        { href: "/segundo-turno/bairros", label: "2º turno por bairro SJC" },
         { href: "/exterior", label: "Exterior 1º × 2º" },
         { href: "/abstencao", label: "Abstenção SP" },
         { href: "/abstencao/vale-do-paraiba", label: "Abstenção Vale" },
