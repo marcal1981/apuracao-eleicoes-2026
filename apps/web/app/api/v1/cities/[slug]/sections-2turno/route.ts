@@ -33,6 +33,23 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
     .sort((x, y) => r1Votes(y.number) - r1Votes(x.number) || x.number.localeCompare(y.number))
     .map((c) => ({ number: c.number, name: c.name }));
 
+  // Sem o resultado nacional (ou com números diferentes), os finalistas saem dos próprios boletins do 2º turno.
+  const sums = new Map<string, number>();
+  for (const x of s2.sections)
+    for (const [k, v] of Object.entries(x.presVotes ?? {})) if (k !== "branco" && k !== "nulo" && k !== "outros") sums.set(k, (sums.get(k) ?? 0) + v);
+  if (sums.size >= 2 && finalists.filter((f) => sums.has(f.number)).length < 2) {
+    const nameOf = (num: string) => (r2br ?? r1br)?.candidates.find((c) => c.number === num)?.name ?? `Candidato ${num}`;
+    finalists.splice(
+      0,
+      finalists.length,
+      ...[...sums]
+        .sort((x, y) => y[1] - x[1])
+        .slice(0, 2)
+        .sort((x, y) => r1Votes(y[0]) - r1Votes(x[0]) || x[0].localeCompare(y[0]))
+        .map(([number]) => ({ number, name: nameOf(number) })),
+    );
+  }
+
   // Só o necessário de cada seção (a cidade tem mais de mil seções por turno).
   const slim = (s: typeof s1) =>
     s.sections

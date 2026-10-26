@@ -220,7 +220,7 @@ export function BairroSecondRoundView({ slug }: { slug: string }) {
             lon: p.lon!,
             value: mapMode === "vencedor" ? p.r2.a + p.r2.b : Math.abs(g) * Math.sqrt(p.r2.a + p.r2.b),
             color: mapMode === "vencedor" ? (p.r2.a >= p.r2.b ? colorA : colorB) : g >= 0 ? colorA : colorB,
-            highlighted: selected ? p.sub === selected : flipped(p) && mapMode === "vencedor",
+            highlighted: selected ? p.sub === selected : false,
             html:
               `<strong>${esc(p.name)}</strong><br>${esc(p.sub)}<br>` +
               `2º turno: ${esc(nameA)} ${formatPct(s2)} · ${esc(nameB)} ${formatPct(100 - s2)}<br>` +
@@ -388,7 +388,7 @@ export function BairroSecondRoundView({ slug }: { slug: string }) {
               </span>
               <span className="text-xs text-muted">
                 {mapMode === "vencedor"
-                  ? "Cada círculo é um local de votação; contorno escuro = local que trocou de candidato."
+                  ? "Cada círculo é um local de votação, na cor de quem venceu ali no 2º turno (passe o mouse para ver se trocou de candidato)."
                   : "Círculo maior = mudança maior entre os turnos."}
                 {selected ? ` Destacando: ${selected}.` : ""}
               </span>

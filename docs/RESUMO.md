@@ -313,3 +313,10 @@ Página `/exterior`: Presidente no exterior, 1º turno × 2º turno.
 - O país é deduzido do nome da cidade (`apps/web/lib/exterior-countries.ts`); cidade fora da tabela aparece como "Outros".
 - Leitura em segundo plano a cada 2 minutos (`EXTERIOR_POLL_MS`), com ETag; cidades com o 1º turno finalizado não são lidas de novo. Guarda em `data/cities/exterior-presidente.json`.
 
+## Aba "2º turno por bairro SJC"
+
+Página `/segundo-turno/bairros`: Presidente por bairro em São José dos Campos, 2º turno × 1º turno, a partir dos boletins de urna de cada seção nos dois turnos (o 2º turno tem pleito próprio no TSE — 3221 em 2026, ou `TSE_PLEITO_R2` — e cache separado `data/cities/secoes-<cidade>-t2.json`).
+
+- Compara só as seções lidas nos dois turnos; bairro conforme o cadastro de locais do TSE.
+- Frase-resumo da cidade, bairros que trocaram de candidato (para cada um), rankings "onde cada um mais ganhou terreno", mapa por local (vencedor no 2º turno ou quem ganhou terreno), tabela por bairro com % de cada um nos dois turnos, terreno de cada um e quem estava à frente em cada turno, e planilha CSV.
+
