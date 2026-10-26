@@ -80,6 +80,7 @@ const title = (s: string) =>
     .replace(/ (Da|De|Do|Das|Dos|E)(?= )/g, (w) => w.toLowerCase());
 const shareA = (t: Tot) => (t.a + t.b > 0 ? (t.a / (t.a + t.b)) * 100 : 50);
 const pts = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const signedInt = (v: number) => `${v >= 0 ? "+" : "−"}${formatInt(Math.abs(v))}`;
 const empty = (): Tot => ({ a: 0, b: 0, others: 0, blankNull: 0, electorate: 0, abstention: 0 });
 const norm = (s: string) =>
   s
@@ -87,7 +88,7 @@ const norm = (s: string) =>
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "");
 
-type Sort = "virada" | "terrenoA" | "terrenoB" | "eleitores" | "nome";
+type Sort = "virada" | "terrenoA" | "terrenoB" | "votosA" | "votosB" | "eleitores" | "nome";
 type MapMode = "vencedor" | "terreno";
 
 /** Presidente por bairro: 2º turno × 1º turno, com os bairros que trocaram de candidato. */
@@ -178,7 +179,7 @@ export function BairroSecondRoundView({ slug }: { slug: string }) {
     }
     for (const b of bairroMap.values()) {
       const nPlaces = [...placeMap.values()].filter((p) => p.sub === b.name).length;
-      b.sub = `${b.sections} ${b.sections === 1 ? "seção" : "seções"} · ${nPlaces} ${nPlaces === 1 ? "local" : "locais"}`;
+      b.sub = `${b.sections} ${b.sections === 1 ? "seção" : "seções"} · ${nPlaces} ${nPlaces === 1 ? "local" : "locais"} · ${formatInt(b.r1.others)} nos demais no 1º`;
     }
     return { bairros: [...bairroMap.values()], places: [...placeMap.values()], city: cityTot, compared };
   }, [data, A, B]);
@@ -200,6 +201,8 @@ export function BairroSecondRoundView({ slug }: { slug: string }) {
       virada: (x, y) => Number(flipped(y)) - Number(flipped(x)) || Math.abs(gainA(y)) - Math.abs(gainA(x)),
       terrenoA: (x, y) => gainA(y) - gainA(x),
       terrenoB: (x, y) => gainA(x) - gainA(y),
+      votosA: (x, y) => y.r2.a - y.r1.a - (x.r2.a - x.r1.a),
+      votosB: (x, y) => y.r2.b - y.r1.b - (x.r2.b - x.r1.b),
       eleitores: (x, y) => y.r2.electorate - x.r2.electorate,
       nome: (x, y) => x.name.localeCompare(y.name, "pt-BR"),
     };
@@ -232,11 +235,11 @@ export function BairroSecondRoundView({ slug }: { slug: string }) {
   );
 
   const csv = () => {
-    const head = ["Bairro", "Seções", `${nameA} 1º turno`, `${nameB} 1º turno`, `${nameA} 2º turno`, `${nameB} 2º turno`, `% ${nameA} 1º (entre os dois)`, `% ${nameA} 2º (entre os dois)`, `Terreno ${nameA} (pontos)`, `Terreno ${nameB} (pontos)`, "À frente no 1º", "À frente no 2º", "Trocou"];
+    const head = ["Bairro", "Seções", `${nameA} 1º turno`, `${nameB} 1º turno`, `${nameA} 2º turno`, `${nameB} 2º turno`, `% ${nameA} 1º (entre os dois)`, `% ${nameA} 2º (entre os dois)`, `Terreno ${nameA} (pontos)`, `Terreno ${nameB} (pontos)`, `Votos a mais ${nameA}`, `Votos a mais ${nameB}`, "Demais candidatos no 1º turno", "À frente no 1º", "À frente no 2º", "Trocou"];
     const num = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
     const who = (t: Tot) => (leaderOf(t) === "A" ? nameA : leaderOf(t) === "B" ? nameB : "");
     const lines = rows.map((x) =>
-      [x.name, x.sections, x.r1.a, x.r1.b, x.r2.a, x.r2.b, num(shareA(x.r1)), num(shareA(x.r2)), num(gainA(x)), num(-gainA(x)), who(x.r1), who(x.r2), flipped(x) ? "sim" : "não"]
+      [x.name, x.sections, x.r1.a, x.r1.b, x.r2.a, x.r2.b, num(shareA(x.r1)), num(shareA(x.r2)), num(gainA(x)), num(-gainA(x)), x.r2.a - x.r1.a, x.r2.b - x.r1.b, x.r1.others, who(x.r1), who(x.r2), flipped(x) ? "sim" : "não"]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`)
         .join(";"),
     );
@@ -307,6 +310,13 @@ export function BairroSecondRoundView({ slug }: { slug: string }) {
                 {g >= 0 ? nameA : nameB} ganhou {pts(Math.abs(g))} pontos
               </strong>{" "}
               de vantagem em {cityName}.
+            </p>
+            <p className="mt-2 text-sm">
+              Em votos: {nameA} foi de {formatInt(city.r1.a)} para <strong>{formatInt(city.r2.a)}</strong> (
+              <strong style={{ color: colorA }}>{signedInt(city.r2.a - city.r1.a)}</strong>) e {nameB} de {formatInt(city.r1.b)} para{" "}
+              <strong>{formatInt(city.r2.b)}</strong> (<strong style={{ color: colorB }}>{signedInt(city.r2.b - city.r1.b)}</strong>). No 1º turno,{" "}
+              {formatInt(city.r1.others)} votos foram para os demais candidatos; no 2º turno eles se dividem entre os dois, votam em branco/nulo ou
+              não comparecem — por isso os dois podem crescer em votos e, mesmo assim, um ganhar terreno sobre o outro.
             </p>
             <p className="mt-2 text-sm">
               <strong>{flips.length}</strong> de {bairros.length} bairros trocaram de candidato:{" "}
@@ -406,6 +416,8 @@ export function BairroSecondRoundView({ slug }: { slug: string }) {
               <option value="virada">Bairros que trocaram primeiro</option>
               <option value="terrenoA">Mais terreno de {nameA}</option>
               <option value="terrenoB">Mais terreno de {nameB}</option>
+              <option value="votosA">Mais votos a mais de {nameA}</option>
+              <option value="votosB">Mais votos a mais de {nameB}</option>
               <option value="eleitores">Mais eleitores</option>
               <option value="nome">Ordem alfabética</option>
             </select>
@@ -440,6 +452,16 @@ export function BairroSecondRoundView({ slug }: { slug: string }) {
                       <span className="block font-normal">pontos</span>
                     </th>
                   ))}
+                  {[
+                    { nm: nameA, c: colorA },
+                    { nm: nameB, c: colorB },
+                  ].map((x) => (
+                    <th key={`v-${x.nm}`} className="px-3 py-2 text-right">
+                      <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: x.c }} />
+                      Votos a mais {x.nm}
+                      <span className="block font-normal">1º → 2º turno</span>
+                    </th>
+                  ))}
                   <th className="px-3 py-2">À frente: 1º → 2º turno</th>
                 </tr>
               </thead>
@@ -462,7 +484,7 @@ export function BairroSecondRoundView({ slug }: { slug: string }) {
                       className={`border-b border-border last:border-0 ${selected === x.name ? "bg-accent/10" : ""}`}
                       onClick={() => setSelected(selected === x.name ? null : x.name)}
                     >
-                      <td className="cursor-pointer px-3 py-2">
+                      <td className="min-w-[200px] cursor-pointer px-3 py-2">
                         <span className="font-medium">{x.name}</span>
                         <span className="block text-xs text-muted">{x.sub}</span>
                       </td>
@@ -477,6 +499,19 @@ export function BairroSecondRoundView({ slug }: { slug: string }) {
                         <td key={i} className="whitespace-nowrap px-3 py-2 text-right font-semibold" style={{ color: t.v > 0 ? t.c : "var(--muted)" }}>
                           {t.v > 0 ? "+" : t.v < 0 ? "−" : ""}
                           {pts(Math.abs(t.v))}
+                        </td>
+                      ))}
+                      {[
+                        { v1: x.r1.a, v2: x.r2.a, c: colorA },
+                        { v1: x.r1.b, v2: x.r2.b, c: colorB },
+                      ].map((t, i) => (
+                        <td key={`v${i}`} className="whitespace-nowrap px-3 py-2 text-right">
+                          <span className="font-semibold" style={{ color: t.v2 - t.v1 > 0 ? t.c : "var(--muted)" }}>
+                            {signedInt(t.v2 - t.v1)}
+                          </span>
+                          <span className="block text-xs text-muted">
+                            {formatInt(t.v1)} → {formatInt(t.v2)}
+                          </span>
                         </td>
                       ))}
                       <td className="whitespace-nowrap px-3 py-2 text-xs font-semibold">
@@ -496,7 +531,8 @@ export function BairroSecondRoundView({ slug }: { slug: string }) {
           )}
           <p className="text-xs text-muted">
             * Percentual de {nameA} e de {nameB} considerando só os votos dos dois, para comparar o 1º turno (que teve outros candidatos) com o 2º.
-            Terreno: quanto a vantagem de cada um mudou em relação ao 1º turno, em pontos (positivo = ganhou). Bairro conforme o cadastro de
+            Terreno: quanto a vantagem de cada um mudou em relação ao 1º turno, em pontos (positivo = ganhou) — terreno negativo não quer dizer
+            que o candidato perdeu votos: veja &quot;Votos a mais&quot;, a diferença de votos de cada um entre os turnos nas mesmas seções. Bairro conforme o cadastro de
             locais de votação do TSE. Clique num bairro para destacá-lo no mapa.
           </p>
         </>
