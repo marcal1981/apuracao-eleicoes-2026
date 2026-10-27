@@ -320,3 +320,12 @@ Página `/segundo-turno/bairros`: Presidente por bairro em São José dos Campos
 - Compara só as seções lidas nos dois turnos; bairro conforme o cadastro de locais do TSE.
 - Frase-resumo da cidade, bairros que trocaram de candidato (para cada um), rankings "onde cada um mais ganhou terreno", mapa por local (vencedor no 2º turno ou quem ganhou terreno), tabela por bairro com % de cada um nos dois turnos, terreno de cada um e quem estava à frente em cada turno, e planilha CSV.
 
+
+## Aba "Calibração da projeção"
+
+Página `/segundo-turno/calibracao`: "rebobina" a apuração do 2º turno guardada pelo sistema (pasta `data/snapshots`) e refaz a projeção em cada momento com os dados daquela hora, comparando com o resultado final.
+
+- Gráfico do % do 1º finalista ao longo da apuração: placar, projeção com a margem de 95% e o resultado final.
+- Desde quando a projeção (e o placar) apontaram o vencedor sem mudar mais.
+- Tabela por fase da apuração: erro do placar × erro da projeção, margem usada, quantas vezes o resultado ficou dentro da margem (ideal ≈ 95%), quantas vezes apontou o vencedor e a chance média dada a ele.
+- Controles da margem de erro (incerteza por estado e comum a todos) e o "melhor ajuste desta noite" (pontuação logarítmica). O algoritmo fica em `apps/web/lib/projection.ts`, o mesmo da aba ao vivo (`DEFAULT_PARAMS`).
