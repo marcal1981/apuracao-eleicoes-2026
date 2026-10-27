@@ -91,7 +91,7 @@ export function SecondRoundView() {
   const [axis, setAxis] = useState<Axis>("pct");
   const [mapMode, setMapMode] = useState<MapMode>("lider");
   // Ordem da tabela por UF: por terreno (muda a cada atualização) ou fixa, em ordem alfabética.
-  const [ufSort, setUfSort] = useState<"terreno" | "nome">("terreno");
+  const [ufSort, setUfSort] = useState<"terreno" | "votosA" | "votosB" | "nome">("terreno");
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -156,7 +156,15 @@ export function SecondRoundView() {
       expected,
       actual,
       allSamePoint: rows.every((u) => u.samePoint),
-      rows: rows.sort((x, y) => (ufSort === "nome" ? x.name.localeCompare(y.name, "pt-BR") : y.s2 - y.s1 - (x.s2 - x.s1))),
+      rows: rows.sort((x, y) =>
+        ufSort === "nome"
+          ? x.name.localeCompare(y.name, "pt-BR")
+          : ufSort === "votosA"
+            ? y.r2.a - y.r1.a - (x.r2.a - x.r1.a)
+            : ufSort === "votosB"
+              ? y.r2.b - y.r1.b - (x.r2.b - x.r1.b)
+              : y.s2 - y.s1 - (x.s2 - x.s1),
+      ),
     };
   }, [data, ufSort]);
 
@@ -347,8 +355,14 @@ export function SecondRoundView() {
                 </dt>
                 <dd className="text-2xl font-bold">{r2 ? formatPct(i === 0 ? shareA(r2.a, r2.b) : 100 - shareA(r2.a, r2.b)) : "—"}</dd>
                 <dd className="text-xs text-muted">
-                  {formatInt(v2)} votos no 2º turno · 1º turno: {formatInt(v1)}
+                  {formatInt(v1)} no 1º turno → {formatInt(v2)} no 2º turno
                 </dd>
+                {r2 && (
+                  <dd className="text-xs font-semibold" style={{ color: v2 - v1 > 0 ? color : "var(--muted)" }}>
+                    {v2 - v1 >= 0 ? "+" : "−"}
+                    {formatInt(Math.abs(v2 - v1))} votos{r2.pct < 100 ? " até agora" : ""}
+                  </dd>
+                )}
               </div>
             ))}
             <div>
@@ -463,6 +477,28 @@ export function SecondRoundView() {
                 de vantagem. Como cada estado é comparado com ele mesmo, essa conta não é afetada por alguns estados apurarem mais
                 rápido que outros.
               </div>
+              {r1 && r2 && (
+                <div className="rounded-xl border border-border bg-surface p-4 text-sm">
+                  <strong>Em votos{r2.pct < 100 ? ` (com ${formatPct(r2.pct)} do 2º turno apurado)` : ""}:</strong> {nameA} foi de {formatInt(r1.a)} para{" "}
+                  <strong>{formatInt(r2.a)}</strong> (
+                  <strong style={{ color: colorA }}>
+                    {r2.a - r1.a >= 0 ? "+" : "−"}
+                    {formatInt(Math.abs(r2.a - r1.a))}
+                  </strong>
+                  ) e {nameB} de {formatInt(r1.b)} para <strong>{formatInt(r2.b)}</strong> (
+                  <strong style={{ color: colorB }}>
+                    {r2.b - r1.b >= 0 ? "+" : "−"}
+                    {formatInt(Math.abs(r2.b - r1.b))}
+                  </strong>
+                  ).{" "}
+                  {(() => {
+                    const others = (data?.byUf ?? []).reduce((sum, u) => sum + Math.max(0, u.r1.valid - u.r1.a - u.r1.b), 0);
+                    return others > 0 ? `No 1º turno, ${formatInt(others)} votos foram para os demais candidatos. ` : "";
+                  })()}
+                  No 2º turno esses eleitores se dividem entre os dois, votam em branco/nulo ou não comparecem — por isso os dois podem crescer em
+                  votos e, mesmo assim, um ganhar terreno sobre o outro.
+                </div>
+              )}
               <div className="flex items-center justify-end gap-2 text-sm">
                 <label htmlFor="uf-sort" className="text-muted">
                   Ordenar estados:
@@ -470,10 +506,12 @@ export function SecondRoundView() {
                 <select
                   id="uf-sort"
                   value={ufSort}
-                  onChange={(e) => setUfSort(e.target.value as "terreno" | "nome")}
+                  onChange={(e) => setUfSort(e.target.value as "terreno" | "votosA" | "votosB" | "nome")}
                   className="rounded-lg border border-border bg-surface px-2 py-1"
                 >
                   <option value="terreno">por terreno (muda a cada atualização)</option>
+                  <option value="votosA">mais votos a mais de {nameA}</option>
+                  <option value="votosB">mais votos a mais de {nameB}</option>
                   <option value="nome">em ordem alfabética (fixa)</option>
                 </select>
               </div>
@@ -501,6 +539,16 @@ export function SecondRoundView() {
                           <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: c.color }} />
                           Terreno {c.name}
                           <span className="block font-normal">pontos × 1º turno</span>
+                        </th>
+                      ))}
+                      {[
+                        { name: nameA, color: colorA },
+                        { name: nameB, color: colorB },
+                      ].map((c) => (
+                        <th key={`v-${c.name}`} className="px-3 py-2 text-right">
+                          <span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ background: c.color }} />
+                          Votos a mais {c.name}
+                          <span className="block font-normal">1º turno → 2º turno</span>
                         </th>
                       ))}
                       <th className="px-3 py-2 text-right">
@@ -548,6 +596,20 @@ export function SecondRoundView() {
                               {Math.abs(t.v).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
                             </td>
                           ))}
+                          {[
+                            { v1: u.r1.a, v2: u.r2.a, color: colorA },
+                            { v1: u.r1.b, v2: u.r2.b, color: colorB },
+                          ].map((t, i) => (
+                            <td key={`v${i}`} className="whitespace-nowrap px-3 py-2 text-right">
+                              <span className="font-semibold" style={{ color: t.v2 - t.v1 > 0 ? t.color : "var(--muted)" }}>
+                                {t.v2 - t.v1 >= 0 ? "+" : "−"}
+                                {formatInt(Math.abs(t.v2 - t.v1))}
+                              </span>
+                              <span className="block text-xs text-muted">
+                                {formatInt(t.v1)} → {formatInt(t.v2)}
+                              </span>
+                            </td>
+                          ))}
                           <td className="whitespace-nowrap px-3 py-2 text-right text-xs">
                             {(() => {
                               const pu = projection?.byUf.get(u.uf);
@@ -570,7 +632,8 @@ export function SecondRoundView() {
                 * Percentual de {nameA} e de {nameB} considerando só os votos dos dois finalistas, no 1º turno da UF com o mesmo % apurado
                 que ela tem agora no 2º turno (&quot;final&quot; quando o sistema não guardou a evolução do 1º turno). &quot;Terreno&quot;:
                 quanto a vantagem de cada um mudou em relação ao 1º turno, em pontos (positivo = ganhou, negativo = perdeu) — a mesma conta
-                da frase e do gráfico. &quot;Projeção ao fim&quot;: estimativa de como a UF termina, explicada no quadro de projeção.
+                da frase e do gráfico. Terreno negativo não quer dizer que o candidato perdeu votos: &quot;Votos a mais&quot; mostra os votos de
+                cada um no resultado final do 1º turno e no 2º turno (enquanto a UF não chega a 100%, o 2º turno ainda está parcial). &quot;Projeção ao fim&quot;: estimativa de como a UF termina, explicada no quadro de projeção.
               </p>
             </>
           )}
