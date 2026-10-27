@@ -607,6 +607,7 @@ export function SecondRoundView() {
                               </span>
                               <span className="block text-xs text-muted">
                                 {formatInt(t.v1)} → {formatInt(t.v2)}
+                                {u.r2.pct < 100 ? " (parcial)" : ""}
                               </span>
                             </td>
                           ))}
