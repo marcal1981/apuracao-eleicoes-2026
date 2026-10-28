@@ -536,6 +536,7 @@ function ProfileSection({
             ))}
           </div>
           <Highlights t1={t1} />
+          {t2 && <Returned t1={t1} t2={t2} />}
           <div className="grid gap-3 lg:grid-cols-2">
             {DIMS.map((d) => (
               <DimCard key={d.key} label={d.label} rows1={t1.dims[d.key] ?? {}} rows2={t2?.dims[d.key] ?? null} byCode={d.byCode} total={t1.total[2]} />
@@ -550,6 +551,41 @@ function ProfileSection({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/** Com o perfil do 2º turno publicado: em cada característica, o grupo em que a abstenção mais caiu. */
+function Returned({ t1, t2 }: { t1: TurnProfile; t2: TurnProfile }) {
+  const items = DIMS.map((d) => {
+    const best = Object.entries(t1.dims[d.key] ?? {})
+      .filter(([k, r]) => !isUnknown(r[0]) && r[1] >= t1.total[0] * 0.01 && t2.dims[d.key]?.[k])
+      .map(([k, r]) => {
+        const r2 = t2.dims[d.key]![k]!;
+        return { label: r[0], rate1: pct(r[3], r[1]), rate2: pct(r2[3], r2[1]), back: r[3] - r2[3] };
+      })
+      .sort((a, b) => a.rate2 - a.rate1 - (b.rate2 - b.rate1))[0];
+    return best ? { what: d.label, ...best } : null;
+  }).filter((x): x is NonNullable<typeof x> => x !== null);
+  const overall1 = pct(t1.total[2], t1.total[0]);
+  const overall2 = pct(t2.total[2], t2.total[0]);
+  return (
+    <div className="rounded-xl border border-emerald-600/40 bg-emerald-600/5 p-4 text-sm">
+      <h3 className="mb-1 font-semibold">Onde mais gente voltou a votar no 2º turno</h3>
+      <p className="mb-1 text-muted">
+        No geral, a abstenção foi de {formatPct(overall1)} para {formatPct(overall2)} ({pp(overall2 - overall1)}). O grupo em que mais caiu, em
+        cada característica:
+      </p>
+      <ul className="list-inside list-disc space-y-0.5">
+        {items.map((x) => (
+          <li key={x.what}>
+            {x.what}: <strong>{title(x.label)}</strong> — {formatPct(x.rate1)} → {formatPct(x.rate2)}{" "}
+            <span className={x.rate2 <= x.rate1 ? "text-emerald-600" : "text-amber-600"}>({pp(x.rate2 - x.rate1)})</span>,{" "}
+            {formatInt(Math.abs(x.back))} {x.back >= 0 ? "faltosos a menos" : "faltosos a mais"}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-1 text-xs text-muted">Só grupos com pelo menos 1% dos eleitores; &quot;não informado&quot; fica de fora.</p>
     </div>
   );
 }
@@ -648,7 +684,12 @@ function DimCard({
                   </td>
                   <td className="whitespace-nowrap py-1.5 pl-2 text-right tabular-nums">
                     <strong>{formatPct(rate)}</strong>
-                    {rate2 !== null && <span className="block text-muted">→ {formatPct(rate2)}</span>}
+                    {rate2 !== null && (
+                      <span className="block text-muted">
+                        → {formatPct(rate2)}{" "}
+                        <span className={rate2 <= rate ? "text-emerald-600" : "text-amber-600"}>({pp(rate2 - rate)})</span>
+                      </span>
+                    )}
                     <span className="block text-[10px] text-muted">{formatPct(pct(r[3], total))} dos faltosos</span>
                   </td>
                 </tr>
