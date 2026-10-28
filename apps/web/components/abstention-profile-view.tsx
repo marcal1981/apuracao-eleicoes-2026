@@ -136,7 +136,8 @@ export function AbstentionProfileView() {
             moreTurnout: x.r2!.turnout - x.r1!.turnout,
             moreA: x.r2!.a - x.r1!.a,
             moreB: x.r2!.b - x.r1!.b,
-            toA: extra > 0 ? pct(x.r2!.a - x.r1!.a, extra) : null,
+            // Só quando os dois ganharam votos (senão a divisão passa de 100% e confunde).
+            toA: extra > 0 && x.r2!.a >= x.r1!.a && x.r2!.b >= x.r1!.b ? pct(x.r2!.a - x.r1!.a, extra) : null,
             gainA: (shareA(x.r2!) - shareA(x.r1!)) * 2,
           };
         })
@@ -211,7 +212,7 @@ export function AbstentionProfileView() {
                     <td className="px-3 py-2 font-medium">{s.name}</td>
                     <td className="px-3 py-2 text-right">{formatPct(s.ab1)}</td>
                     <td className="px-3 py-2 text-right font-semibold">{formatPct(s.ab2)}</td>
-                    <td className={`px-3 py-2 text-right font-semibold ${s.drop >= 0 ? "text-emerald-600" : "text-amber-600"}`}>{pp(-s.drop)}</td>
+                    <td className={`whitespace-nowrap px-3 py-2 text-right font-semibold ${s.drop >= 0 ? "text-emerald-600" : "text-amber-600"}`}>{pp(-s.drop)}</td>
                     <td className="px-3 py-2 text-right">{signed(s.moreTurnout)}</td>
                     <td className="px-3 py-2 text-right" style={{ color: s.moreA > 0 ? colorA : "var(--muted)" }}>
                       {signed(s.moreA)}
@@ -230,7 +231,7 @@ export function AbstentionProfileView() {
           <p className="text-xs text-muted">
             Variação negativa (verde) = a abstenção caiu no 2º turno. &quot;Dos votos a mais&quot;: como se dividiu, entre {nameA} e {nameB}, o
             aumento de votos dos dois do 1º para o 2º turno (vindo de quem voltou a votar, de quem votou nos demais candidatos e de quem votou
-            branco/nulo no 1º turno).
+            branco/nulo no 1º turno); &quot;—&quot; quando um dos dois perdeu votos.
           </p>
         </>
       )}
@@ -595,7 +596,7 @@ function Highlights({ t1 }: { t1: TurnProfile }) {
       <ul className="list-inside list-disc space-y-0.5">
         {items.map(({ what, row }) => (
           <li key={what}>
-            {what}: <strong>{title(row![0])}</strong> — {formatPct(pct(row![3], row![1]))} faltaram ({formatPct(pct(row![3], row![1]) - overall)} acima da média de{" "}
+            {what}: <strong>{title(row![0])}</strong> — {formatPct(pct(row![3], row![1]))} faltaram ({(pct(row![3], row![1]) - overall).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} pontos acima da média de{" "}
             {formatPct(overall)})
           </li>
         ))}

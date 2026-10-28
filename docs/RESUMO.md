@@ -329,3 +329,11 @@ Página `/segundo-turno/calibracao`: "rebobina" a apuração do 2º turno guarda
 - Desde quando a projeção (e o placar) apontaram o vencedor sem mudar mais.
 - Tabela por fase da apuração: erro do placar × erro da projeção, margem usada, quantas vezes o resultado ficou dentro da margem (ideal ≈ 95%), quantas vezes apontou o vencedor e a chance média dada a ele.
 - Controles da margem de erro (incerteza por estado e comum a todos) e o "melhor ajuste desta noite" (pontuação logarítmica). O algoritmo fica em `apps/web/lib/projection.ts`, o mesmo da aba ao vivo (`DEFAULT_PARAMS`).
+
+## Aba "Quem faltou (abstenção)"
+
+Página `/abstencao/perfil`:
+
+- **1º × 2º turno** (Brasil, cada estado e exterior), com os resultados de Presidente já guardados: eleitores, comparecimento, abstenção, brancos, nulos e válidos nos dois turnos; votos a mais de cada finalista e de onde vieram (queda da abstenção, votos dos demais candidatos no 1º turno, brancos/nulos a menos).
+- **Todos os estados**: tabela (abstenção nos dois turnos, variação, compareceram a mais, votos a mais de cada um e como se dividiram) e gráfico "queda da abstenção × terreno".
+- **Perfil de quem faltou**, pelo arquivo de dados abertos do TSE `perfil_comparecimento_abstencao_<ano>.zip` (≈ 230 MB; baixado uma vez para `data/downloads` e resumido em `data/cities/perfil-abstencao-<ano>.json`): faixa etária, escolaridade, gênero, cor/raça, estado civil, voto obrigatório × facultativo e cidades do estado. O sistema confere a cada 6 h se o TSE publicou versão nova; quando o 2º turno entrar, os dois turnos aparecem lado a lado. Outro endereço: `PERFIL_ABSTENCAO_URL`.
