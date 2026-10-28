@@ -81,7 +81,6 @@ export function AbstentionProfileView() {
   const [uf, setUf] = useState("BR");
   const [turns, setTurns] = useState<TurnsData | null>(null);
   const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [citySort, setCitySort] = useState<"alta" | "baixa" | "queda">("alta");
 
   useEffect(() => {
     fetch("/api/v1/abstencao/turnos")
@@ -242,8 +241,6 @@ export function AbstentionProfileView() {
         ready={!!ready}
         name={name}
         uf={uf}
-        citySort={citySort}
-        setCitySort={setCitySort}
       />
     </section>
   );
@@ -455,36 +452,16 @@ function ProfileSection({
   ready,
   name,
   uf,
-  citySort,
-  setCitySort,
 }: {
   profile: ProfileData | null;
   ready: boolean;
   name: string;
   uf: string;
-  citySort: "alta" | "baixa" | "queda";
-  setCitySort: (v: "alta" | "baixa" | "queda") => void;
 }) {
   const st = profile?.status;
   const t1 = profile?.turns?.["1"] ?? null;
   const t2 = profile?.turns?.["2"] ?? null;
 
-  const cities = useMemo(() => {
-    if (!t1) return [];
-    const rows = Object.entries(t1.cities)
-      .map(([code, [nm, aptos, , abst]]) => {
-        const c2 = t2?.cities[code];
-        return { code, name: title(nm), aptos, rate1: pct(abst, aptos), rate2: c2 ? pct(c2[3], c2[1]) : null };
-      })
-      .filter((c) => c.aptos >= 1000);
-    const by =
-      citySort === "alta"
-        ? (a: (typeof rows)[0], b: (typeof rows)[0]) => b.rate1 - a.rate1
-        : citySort === "baixa"
-          ? (a: (typeof rows)[0], b: (typeof rows)[0]) => a.rate1 - b.rate1
-          : (a: (typeof rows)[0], b: (typeof rows)[0]) => (a.rate2 ?? 0) - a.rate1 - ((b.rate2 ?? 0) - b.rate1);
-    return rows.sort(by).slice(0, 20);
-  }, [t1, t2, citySort]);
 
   return (
     <div className="space-y-3">
@@ -535,47 +512,12 @@ function ProfileSection({
               <DimCard key={d.key} label={d.label} rows1={t1.dims[d.key] ?? {}} rows2={t2?.dims[d.key] ?? null} byCode={d.byCode} total={t1.total[2]} />
             ))}
           </div>
-          {!t2 && (uf === "BR" || uf === "ZZ" ? (
+          {uf === "BR" || uf === "ZZ" ? (
             <p className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-muted">
-              Para ver a <strong>estimativa do 2º turno por faixa de idade</strong>, escolha um estado (ela usa os municípios do estado).
+              Escolha um estado para comparar as cidades nos dois turnos.
             </p>
           ) : (
-            <AgeEstimate uf={uf} name={name} />
-          ))}
-          {uf !== "BR" && cities.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base font-semibold">Cidades de {name}</h3>
-                <select value={citySort} onChange={(e) => setCitySort(e.target.value as "alta" | "baixa" | "queda")} className="rounded-lg border border-border bg-surface px-2 py-1 text-sm">
-                  <option value="alta">Maior abstenção (1º turno)</option>
-                  <option value="baixa">Menor abstenção (1º turno)</option>
-                  {t2 && <option value="queda">Maior queda no 2º turno</option>}
-                </select>
-                <span className="text-xs text-muted">cidades com pelo menos 1.000 eleitores; 20 primeiras</span>
-              </div>
-              <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-                <table className="w-full text-sm">
-                  <thead className="text-left text-xs text-muted">
-                    <tr className="border-b border-border">
-                      <th className="px-3 py-2">Cidade</th>
-                      <th className="px-3 py-2 text-right">Eleitores</th>
-                      <th className="px-3 py-2 text-right">Abstenção 1º turno</th>
-                      {t2 && <th className="px-3 py-2 text-right">Abstenção 2º turno</th>}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cities.map((c) => (
-                      <tr key={c.code} className="border-b border-border last:border-0">
-                        <td className="px-3 py-2 font-medium">{c.name}</td>
-                        <td className="px-3 py-2 text-right">{formatInt(c.aptos)}</td>
-                        <td className="px-3 py-2 text-right font-semibold">{formatPct(c.rate1)}</td>
-                        {t2 && <td className="px-3 py-2 text-right">{c.rate2 === null ? "—" : formatPct(c.rate2)}</td>}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <CityCompare uf={uf} name={name} names={t1.cities} />
           )}
         </>
       )}
@@ -671,33 +613,36 @@ function DimCard({
   );
 }
 
-interface Estimate {
+interface CityData {
   status: "waiting" | "loading" | "ready" | "error";
   done?: number;
   total?: number;
   message?: string | null;
   citiesUsed?: number;
   citiesTotal?: number;
-  r2ActualRate?: number | null;
-  r2ModelRate?: number;
-  bands?: { label: string; aptos: number; share: number; r1Rate: number; r2Rate: number; delta: number; margin: number }[];
+  groups?: { key: string; title: string; unit: string; items: { label: string; cities: number; electorate: number; value: number; r1Rate: number; r2Rate: number }[] }[];
+  cities?: Record<string, [number, number]>;
 }
 
-/** Abstenção do 2º turno por faixa de idade, estimada pelos municípios (enquanto o TSE não publica o perfil oficial). */
-function AgeEstimate({ uf, name }: { uf: string; name: string }) {
-  const [est, setEst] = useState<Estimate | null>(null);
+type CitySort = "queda" | "alta" | "alta2" | "maior1";
+
+/** As cidades do estado nos dois turnos: grupos por perfil do eleitorado e a tabela de cidades. */
+function CityCompare({ uf, name, names }: { uf: string; name: string; names: Record<string, Row4> }) {
+  const [data, setData] = useState<CityData | null>(null);
+  const [sort, setSort] = useState<CitySort>("queda");
+  const [q, setQ] = useState("");
   useEffect(() => {
     let stop = false;
     const load = () =>
-      fetch(`/api/v1/abstencao/estimativa-idade?uf=${uf}`, { cache: "no-store" })
+      fetch(`/api/v1/abstencao/cidades-2turno?uf=${uf}`, { cache: "no-store" })
         .then((r) => r.json())
-        .then((d: Estimate) => {
+        .then((d: CityData) => {
           if (stop) return;
-          setEst(d);
+          setData(d);
           if (d.status === "ready" || d.status === "error") clearInterval(id);
         })
         .catch(() => {});
-    setEst(null);
+    setData(null);
     const id = setInterval(load, 4_000);
     load();
     return () => {
@@ -706,82 +651,129 @@ function AgeEstimate({ uf, name }: { uf: string; name: string }) {
     };
   }, [uf]);
 
-  const bands = est?.bands ?? [];
-  const max = Math.max(1, ...bands.map((b) => Math.max(b.r1Rate, b.r2Rate + b.margin)));
-  const biggestDrop = [...bands].sort((a, b) => a.delta - b.delta)[0];
+  const rows = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return Object.entries(names)
+      .map(([code, [nm, aptos, , abst]]) => {
+        const c2 = data?.cities?.[code];
+        const r1 = pct(abst, aptos);
+        const r2 = c2 ? pct(c2[1], c2[0]) : null;
+        return { code, name: title(nm), aptos, r1, r2, d: r2 === null ? null : r2 - r1 };
+      })
+      .filter((c) => c.aptos >= 1000 && (!needle || c.name.toLowerCase().includes(needle)))
+      .sort((a, b) =>
+        sort === "queda"
+          ? (a.d ?? 99) - (b.d ?? 99)
+          : sort === "alta"
+            ? (b.d ?? -99) - (a.d ?? -99)
+            : sort === "alta2"
+              ? (b.r2 ?? -1) - (a.r2 ?? -1)
+              : b.r1 - a.r1,
+      )
+      .slice(0, 25);
+  }, [names, data, sort, q]);
+
   return (
-    <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4">
+    <div className="space-y-3">
       <div>
-        <h3 className="text-base font-semibold">Faixa etária: 1º turno (oficial) × 2º turno (estimativa) — {name}</h3>
+        <h3 className="text-base font-semibold">Cidades de {name}: abstenção no 1º e no 2º turno</h3>
         <p className="text-xs text-muted">
-          O TSE ainda não publicou o perfil do 2º turno. Esta é uma <strong>estimativa estatística</strong>: cruza, em cada município, quantos
-          eleitores há em cada faixa de idade com quanto a abstenção do município mudou do 1º para o 2º turno. Se a abstenção caiu mais nos
-          municípios com mais jovens, a queda é atribuída aos jovens, e assim por diante.
+          O perfil oficial do 2º turno (por idade, escolaridade…) ainda não saiu. Enquanto isso, dá para ver <strong>em que tipo de cidade</strong>{" "}
+          a abstenção mais caiu: as cidades separadas em cinco grupos iguais, do menor para o maior valor de cada critério (perfil do
+          eleitorado no 1º turno), com a abstenção oficial de cada grupo nos dois turnos.
         </p>
       </div>
-      {!est || est.status !== "ready" ? (
-        <p className="text-sm text-muted">
-          {est?.status === "loading"
-            ? `Lendo o 2º turno de cada município no TSE: ${est.done ?? 0} de ${est.total ?? "?"} (só na primeira vez)…`
-            : est?.status === "error"
-              ? est.message
-              : est?.message ?? "Preparando…"}
+      {!data || data.status !== "ready" ? (
+        <p className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-muted">
+          {data?.status === "loading"
+            ? `Lendo o 2º turno de cada cidade no TSE: ${data.done ?? 0} de ${data.total ?? "?"} (só na primeira vez)…`
+            : data?.status === "error"
+              ? data.message
+              : (data?.message ?? "Preparando…")}
         </p>
       ) : (
         <>
-          {biggestDrop && (
-            <p className="text-sm">
-              A maior queda estimada da abstenção foi entre <strong>{biggestDrop.label}</strong>: de {formatPct(biggestDrop.r1Rate)} para cerca de{" "}
-              <strong>{formatPct(biggestDrop.r2Rate)}</strong> ({pp(biggestDrop.delta)}, margem ± {biggestDrop.margin.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}).
-            </p>
-          )}
-          <ul className="space-y-2">
-            {bands.map((b) => (
-              <li key={b.label} className="grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-2 text-xs">
-                <span>
-                  {b.label}
-                  <span className="block text-[10px] text-muted">{formatPct(b.share)} do eleitorado</span>
-                </span>
-                <span className="space-y-0.5">
-                  <span className="block h-2.5 rounded-r" style={{ width: `${(b.r1Rate / max) * 100}%`, background: BAR1 }} />
-                  <span className="relative block h-2.5">
-                    <span className="absolute inset-y-0 left-0 rounded-r" style={{ width: `${(b.r2Rate / max) * 100}%`, background: BAR2 }} />
-                    <span
-                      className="absolute inset-y-0 rounded bg-[var(--text)] opacity-20"
-                      style={{ left: `${(Math.max(0, b.r2Rate - b.margin) / max) * 100}%`, width: `${((2 * b.margin) / max) * 100}%` }}
-                    />
-                  </span>
-                </span>
-                <span className="whitespace-nowrap text-right tabular-nums">
-                  {formatPct(b.r1Rate)} → <strong>{formatPct(b.r2Rate)}</strong>
-                  <span className={`block text-[10px] ${b.delta < 0 ? "text-emerald-600" : "text-amber-600"}`}>
-                    {pp(b.delta)} (± {b.margin.toLocaleString("pt-BR", { maximumFractionDigits: 1 })})
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+          <div className="grid gap-3 lg:grid-cols-3">
+            {(data.groups ?? []).map((g) => {
+              const max = Math.max(1, ...g.items.map((i) => Math.max(i.r1Rate, i.r2Rate)));
+              return (
+                <div key={g.key} className="rounded-xl border border-border bg-surface p-4">
+                  <h4 className="mb-2 text-sm font-semibold">{g.title}</h4>
+                  <ul className="space-y-2">
+                    {g.items.map((it, i) => (
+                      <li key={i} className="text-xs">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span>
+                            {i === 0 ? "Menor" : i === g.items.length - 1 ? "Maior" : `${i + 1}º grupo`}: {it.label}
+                          </span>
+                          <span className="whitespace-nowrap tabular-nums">
+                            {formatPct(it.r1Rate)} → <strong>{formatPct(it.r2Rate)}</strong>{" "}
+                            <span className={it.r2Rate <= it.r1Rate ? "text-emerald-600" : "text-amber-600"}>({pp(it.r2Rate - it.r1Rate)})</span>
+                          </span>
+                        </div>
+                        <span className="mt-0.5 block h-2 rounded-r" style={{ width: `${(it.r1Rate / max) * 100}%`, background: BAR1 }} />
+                        <span className="mt-0.5 block h-2 rounded-r" style={{ width: `${(it.r2Rate / max) * 100}%`, background: BAR2 }} />
+                        <span className="text-[10px] text-muted">
+                          {it.cities} cidades · {formatInt(it.electorate)} eleitores
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-x-4 text-xs text-muted">
             <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-3 rounded-sm" style={{ background: BAR1 }} /> 1º turno (oficial)
+              <span className="inline-block h-2 w-3 rounded-sm" style={{ background: BAR1 }} /> abstenção 1º turno
             </span>
             <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-3 rounded-sm" style={{ background: BAR2 }} /> 2º turno (estimado)
+              <span className="inline-block h-2 w-3 rounded-sm" style={{ background: BAR2 }} /> abstenção 2º turno
             </span>
-            <span className="flex items-center gap-1">
-              <span className="inline-block h-2 w-3 rounded-sm bg-[var(--text)] opacity-20" /> margem de 95%
+            <span>
+              Base: {formatInt(data.citiesUsed ?? 0)} de {formatInt(data.citiesTotal ?? 0)} cidades. Mostra onde a abstenção mudou, não a abstenção de
+              cada idade: uma cidade com mais jovens também difere em outras coisas (tamanho, renda, distância). {data.message ?? ""}
             </span>
           </div>
-          <p className="text-xs text-muted">
-            Base: {formatInt(est.citiesUsed ?? 0)} de {formatInt(est.citiesTotal ?? 0)} municípios. Conferência: a estimativa soma{" "}
-            {formatPct(est.r2ModelRate ?? 0)} de abstenção no estado; o resultado oficial do 2º turno nesses municípios é{" "}
-            {est.r2ActualRate !== null && est.r2ActualRate !== undefined ? formatPct(est.r2ActualRate) : "—"}. Supõe que, em cada faixa, a mudança
-            foi parecida em todos os municípios do estado; margens largas indicam que os dados não separam bem aquela faixa. Quando o TSE
-            publicar o perfil oficial do 2º turno, os números oficiais substituem esta estimativa. {est.message ?? ""}
-          </p>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <select value={sort} onChange={(e) => setSort(e.target.value as CitySort)} className="rounded-lg border border-border bg-surface px-2 py-1 text-sm">
+              <option value="queda">Maior queda da abstenção</option>
+              <option value="alta">Maior alta da abstenção</option>
+              <option value="alta2">Maior abstenção no 2º turno</option>
+              <option value="maior1">Maior abstenção no 1º turno</option>
+            </select>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cidade…" className="rounded-lg border border-border bg-surface px-3 py-1 text-sm" />
+            <span className="text-xs text-muted">cidades com pelo menos 1.000 eleitores; 25 primeiras</span>
+          </div>
+          <div className="overflow-x-auto rounded-xl border border-border bg-surface">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs text-muted">
+                <tr className="border-b border-border">
+                  <th className="px-3 py-2">Cidade</th>
+                  <th className="px-3 py-2 text-right">Eleitores</th>
+                  <th className="px-3 py-2 text-right">Abstenção 1º turno</th>
+                  <th className="px-3 py-2 text-right">Abstenção 2º turno</th>
+                  <th className="px-3 py-2 text-right">Variação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((c) => (
+                  <tr key={c.code} className="border-b border-border last:border-0">
+                    <td className="px-3 py-2 font-medium">{c.name}</td>
+                    <td className="px-3 py-2 text-right">{formatInt(c.aptos)}</td>
+                    <td className="px-3 py-2 text-right">{formatPct(c.r1)}</td>
+                    <td className="px-3 py-2 text-right font-semibold">{c.r2 === null ? "—" : formatPct(c.r2)}</td>
+                    <td className={`whitespace-nowrap px-3 py-2 text-right font-semibold ${c.d !== null && c.d <= 0 ? "text-emerald-600" : "text-amber-600"}`}>
+                      {c.d === null ? "—" : pp(c.d)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </div>
   );
 }
-
