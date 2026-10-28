@@ -349,6 +349,14 @@ Página `/segundo-turno/votos-dos-demais`: para onde foram, no 2º turno, os ele
 - Os dados são calculados uma vez (não mudam mais) e ficam em `apps/web/public/data/transferencias-2026.json`. Para refazer: baixar do Portal de Dados Abertos do TSE `detalhe_votacao_secao_2026.zip` e `votacao_secao_2026_BR.zip`, e rodar na raiz do repositório `scripts/transferencias/tr_extract.py` e depois `tr_build.py` (Python 3 com numpy e scipy; caminhos dos zips em `TSE_DETALHE_SECAO` e `TSE_VOTACAO_SECAO`; arquivo intermediário em `dados/`).
 
 
+## Senha de acesso ao site
+
+- **`/senhas`**: cadastra e remove as senhas de acesso. Enquanto não existe nenhuma, o site fica aberto e qualquer pessoa pode criar a primeira — que é sempre de **administrador** (por isso, crie-a logo depois de publicar). A partir daí o site pede senha, e só administradores abrem `/senhas`. Dá para criar senhas "só ver" (ex.: Família, Equipe) e removê-las depois; quem entrou com uma senha removida perde o acesso na hora. Não é possível remover o único administrador.
+- **`/entrar`**: tela de senha. Cada aparelho fica conectado por 30 dias (cookie assinado, HttpOnly). "Sair" no cabeçalho desconecta. Após 5 senhas erradas seguidas, o mesmo IP espera 1 minuto.
+- As senhas ficam em `<DATA_DIR>/acesso.json`, só como hash (scrypt), nunca em texto.
+- **`SITE_PASSWORD`** (variável de ambiente, opcional): senha de administrador extra que não depende do arquivo — serve para recuperar o acesso e para manter o site protegido mesmo se a pasta `data` for apagada num novo deploy. Recomendado na Hostinger.
+- A proteção fica em `apps/web/proxy.ts` (páginas sem senha vão para `/entrar`; a API responde 401).
+
 ## Publicar numa hospedagem (ex.: Hostinger, Node.js)
 
 - O build usa **Webpack** (`next build --webpack`): servidores com Linux antigo não carregam o compilador nativo do Next (erro `libm.so.6 ... not found` / `invalid ELF header`); o Next então usa a versão WASM, que só funciona com Webpack (o Turbopack, padrão do Next 16, exige o compilador nativo). Em desenvolvimento (`npm run dev`) continua o Turbopack.

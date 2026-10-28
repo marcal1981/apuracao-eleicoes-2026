@@ -3,6 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 import { loadConfig } from "@/lib/server/config";
 import { OfficeNav } from "@/components/office-nav";
+import { AccountLinks } from "@/components/account-links";
 
 export const metadata: Metadata = {
   title: { default: "Apuração Eleições 2026 em tempo real", template: "%s · Apuração Eleições 2026" },
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link href="/status" className="hover:text-accent">
                   Status
                 </Link>
+                <AccountLinks />
               </div>
             </div>
             <OfficeNav />
