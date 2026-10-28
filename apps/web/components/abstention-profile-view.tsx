@@ -624,27 +624,45 @@ function DimCard({
           </span>
         )}
       </div>
-      <ul className="space-y-1.5">
-        {rows.map(([k, r]) => {
-          const rate = pct(r[3], r[1]);
-          const r2 = rows2?.[k];
-          const rate2 = r2 ? pct(r2[3], r2[1]) : null;
-          return (
-            <li key={k} className="grid grid-cols-[minmax(0,11rem)_1fr_auto] items-center gap-2 text-xs" title={`${formatInt(r[1])} eleitores · ${formatInt(r[3])} faltaram`}>
-              <span className="truncate">{title(r[0])}</span>
-              <span className="space-y-0.5">
-                <span className="block h-2.5 rounded-r" style={{ width: `${(rate / max) * 100}%`, background: BAR1 }} />
-                {rate2 !== null && <span className="block h-2.5 rounded-r" style={{ width: `${(rate2 / max) * 100}%`, background: BAR2 }} />}
-              </span>
-              <span className="whitespace-nowrap text-right tabular-nums">
-                <strong>{formatPct(rate)}</strong>
-                {rate2 !== null && <span className="text-muted"> → {formatPct(rate2)}</span>}
-                <span className="block text-[10px] text-muted">{formatPct(pct(r[3], total))} dos faltosos</span>
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="text-left text-[11px] text-muted">
+            <tr className="border-b border-border">
+              <th className="py-1 pr-2 font-normal" />
+              <th className="w-[38%] py-1 font-normal" />
+              <th className="px-2 py-1 text-right font-normal">Eleitores</th>
+              <th className="px-2 py-1 text-right font-normal">Faltaram</th>
+              <th className="py-1 pl-2 text-right font-normal">Abstenção</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([k, r]) => {
+              const rate = pct(r[3], r[1]);
+              const r2 = rows2?.[k];
+              const rate2 = r2 ? pct(r2[3], r2[1]) : null;
+              return (
+                <tr key={k} className="border-b border-border/60 last:border-0">
+                  <td className="whitespace-nowrap py-1.5 pr-2">{title(r[0])}</td>
+                  <td className="py-1.5">
+                    <span className="block h-2.5 rounded-r" style={{ width: `${(rate / max) * 100}%`, background: BAR1 }} />
+                    {rate2 !== null && <span className="mt-0.5 block h-2.5 rounded-r" style={{ width: `${(rate2 / max) * 100}%`, background: BAR2 }} />}
+                  </td>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">{formatInt(r[1])}</td>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
+                    {formatInt(r[3])}
+                    {r2 && <span className="block text-muted">→ {formatInt(r2[3])}</span>}
+                  </td>
+                  <td className="whitespace-nowrap py-1.5 pl-2 text-right tabular-nums">
+                    <strong>{formatPct(rate)}</strong>
+                    {rate2 !== null && <span className="block text-muted">→ {formatPct(rate2)}</span>}
+                    <span className="block text-[10px] text-muted">{formatPct(pct(r[3], total))} dos faltosos</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
