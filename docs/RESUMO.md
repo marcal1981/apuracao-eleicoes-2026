@@ -339,6 +339,15 @@ Página `/abstencao/perfil`:
 - **Perfil de quem faltou**, pelo arquivo de dados abertos do TSE `perfil_comparecimento_abstencao_<ano>.zip` (≈ 230 MB; baixado uma vez para `data/downloads` e resumido em `data/cities/perfil-abstencao-<ano>.json`): faixa etária, escolaridade, gênero, cor/raça, estado civil, voto obrigatório × facultativo e cidades do estado. O sistema confere a cada 6 h se o TSE publicou versão nova; quando o 2º turno entrar, os dois turnos aparecem lado a lado. Outro endereço: `PERFIL_ABSTENCAO_URL`.
 - **Cidades do estado nos dois turnos** (enquanto o TSE não publica o perfil oficial do 2º turno): abstenção de cada município no 2º turno (resultado oficial, lido uma vez e guardado em `data/cities/abstencao-2turno-<uf>.json`) ao lado do 1º turno; municípios agrupados em quintis por % de eleitores de 16 a 24 anos, % de 70 anos ou mais e tamanho do eleitorado, com a abstenção de cada grupo nos dois turnos; tabela de cidades (maior queda, maior alta…). Estimar a abstenção de cada idade pelos municípios (regressão ecológica) foi testado e descartado: resultados instáveis e implausíveis.
 
+## Aba "Para onde foram os votos"
+
+Página `/segundo-turno/votos-dos-demais`: para onde foram, no 2º turno, os eleitores de Augusto Cury, Renan Santos, Ronaldo Caiado, Romeu Zema, dos demais candidatos, de quem votou branco/nulo e de quem não votou no 1º turno (Lula, Flávio, branco/nulo ou não votou). Brasil, cada estado e São José dos Campos.
+
+- **Estimativa principal**: regressão ecológica (Goodman) seção por seção, sem intercepto, com coeficientes limitados a 0–100% e feita separadamente em cada município (em SJC, em cada zona); o resultado nacional é a média ponderada pelos votos. **Faixa entre métodos**: a mesma conta agrupando por estado.
+- **Conferência por seções homogêneas**: o 1% de seções (5% em SJC) onde o candidato ficou mais acima da média da própria cidade; compara-se o que mudou nelas com o resto da cidade. Marcada como "não confiável" quando o candidato quase não se destaca ou os números saem fora de 0–100%.
+- **Urnas-símbolo**: as 10 seções (com ≥ 150 eleitores) onde cada candidato teve a maior porcentagem, com Lula e Flávio nos dois turnos.
+- Os dados são calculados uma vez (não mudam mais) e ficam em `apps/web/public/data/transferencias-2026.json`. Para refazer: baixar do Portal de Dados Abertos do TSE `detalhe_votacao_secao_2026.zip` e `votacao_secao_2026_BR.zip`, e rodar na raiz do repositório `scripts/transferencias/tr_extract.py` e depois `tr_build.py` (Python 3 com numpy e scipy; caminhos dos zips em `TSE_DETALHE_SECAO` e `TSE_VOTACAO_SECAO`; arquivo intermediário em `dados/`).
+
 
 ## Publicar numa hospedagem (ex.: Hostinger, Node.js)
 

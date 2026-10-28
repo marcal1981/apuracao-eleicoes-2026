@@ -9,3 +9,5 @@ next-env.d.ts
 data/
 apps/web/data/
 .DS_Store
+/dados/
+!apps/web/public/data/

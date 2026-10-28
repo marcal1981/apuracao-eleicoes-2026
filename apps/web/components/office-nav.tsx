@@ -64,6 +64,7 @@ export function OfficeNav() {
         { href: "/segundo-turno/calibracao", label: "Calibração da projeção" },
         { href: "/segundo-turno/cidade", label: "2º turno SJC" },
         { href: "/segundo-turno/bairros", label: "2º turno por bairro SJC" },
+        { href: "/segundo-turno/votos-dos-demais", label: "Para onde foram os votos" },
         { href: "/exterior", label: "Exterior 1º × 2º" },
         { href: "/abstencao/perfil", label: "Quem faltou (abstenção)" },
         { href: "/abstencao", label: "Abstenção SP" },
