@@ -175,7 +175,19 @@ export function AbstentionProfileView() {
       {/* 2. Todos os estados */}
       {states.length > 0 && (
         <>
-          <Scatter states={states} selected={uf} onPick={setUf} nameA={nameA} colorA={colorA} colorB={colorB} nameB={nameB} />
+          <Dumbbell
+            states={states}
+            brasil={
+              turns?.areas.find((x) => x.uf === "BR")?.r1 && turns.areas.find((x) => x.uf === "BR")?.r2
+                ? (() => {
+                    const br = turns.areas.find((x) => x.uf === "BR")!;
+                    return { ab1: pct(br.r1!.abstention, br.r1!.electorate), ab2: pct(br.r2!.abstention, br.r2!.electorate) };
+                  })()
+                : null
+            }
+            selected={uf}
+            onPick={setUf}
+          />
           <div className="overflow-x-auto rounded-xl border border-border bg-surface">
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-muted">
@@ -348,102 +360,98 @@ function TwoRounds({ area, name, nameA, nameB, colorA, colorB }: { area: Area; n
 
 type StateRow = Area & { ab1: number; ab2: number; drop: number; gainA: number };
 
-/** Cada estado: queda da abstenção (eixo X) × terreno ganho pelo 1º finalista (eixo Y). */
-function Scatter({
+/** Abstenção de cada estado no 1º turno (cinza) e no 2º turno (verde), ligadas por uma linha: quanto mais longa, mais mudou. */
+function Dumbbell({
   states,
+  brasil,
   selected,
   onPick,
-  nameA,
-  nameB,
-  colorA,
-  colorB,
 }: {
   states: StateRow[];
+  brasil: { ab1: number; ab2: number } | null;
   selected: string;
   onPick: (uf: string) => void;
-  nameA: string;
-  nameB: string;
-  colorA: string;
-  colorB: string;
 }) {
-  const W = 760;
-  const H = 340;
-  const pad = { l: 52, r: 16, t: 16, b: 40 };
-  const xs = states.map((s) => s.drop);
-  const ys = states.map((s) => s.gainA);
-  const xlo = Math.floor(Math.min(0, ...xs) - 0.5);
-  const xhi = Math.ceil(Math.max(0, ...xs) + 0.5);
-  const yAbs = Math.ceil(Math.max(2, ...ys.map(Math.abs)) + 1);
-  const sx = (v: number) => pad.l + ((v - xlo) / (xhi - xlo)) * (W - pad.l - pad.r);
-  const sy = (v: number) => pad.t + ((yAbs - v) / (2 * yAbs)) * (H - pad.t - pad.b);
-  const [hover, setHover] = useState<StateRow | null>(null);
-  const xStep = xhi - xlo > 10 ? 2 : 1;
-  const yStep = yAbs > 12 ? 4 : yAbs > 6 ? 2 : 1;
+  // O exterior (abstenção perto de 60%) achataria a escala dos estados: fica numa nota à parte.
+  const exterior = states.find((s) => s.uf === "ZZ");
+  const rows = [...(brasil ? [{ uf: "BR", name: "Brasil", ab1: brasil.ab1, ab2: brasil.ab2 }] : []), ...states.filter((s) => s.uf !== "ZZ")];
+  const lo = Math.floor(Math.min(...rows.map((r) => Math.min(r.ab1, r.ab2))) / 2) * 2;
+  const hi = Math.ceil(Math.max(...rows.map((r) => Math.max(r.ab1, r.ab2))) / 2) * 2;
+  const x = (v: number) => ((v - lo) / Math.max(1, hi - lo)) * 100;
+  const ticks = Array.from({ length: Math.floor((hi - lo) / 2) + 1 }, (_, i) => lo + i * 2);
   return (
-    <figure className="rounded-xl border border-border bg-surface p-3">
-      <figcaption className="mb-1 text-xs text-muted">
-        <span className="font-semibold text-[var(--text)]">Cada estado: queda da abstenção × terreno ganho entre os turnos</span> — mais à direita, a
-        abstenção caiu mais; mais acima, {nameA} ganhou mais terreno (abaixo de zero, {nameB}). Passe o mouse ou clique num ponto.
+    <figure className="rounded-xl border border-border bg-surface p-4">
+      <figcaption className="mb-3">
+        <div className="font-semibold">Abstenção em cada estado: 1º turno × 2º turno</div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-muted">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-3 rounded-full" style={{ background: BAR1 }} /> 1º turno
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block h-3 w-3 rounded-full" style={{ background: BAR2 }} /> 2º turno
+          </span>
+          <span>Linha verde: a abstenção caiu · linha laranja: subiu. Ordenado pela maior queda. Clique num estado para ver os detalhes.</span>
+        </div>
       </figcaption>
-      <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Queda da abstenção e terreno por estado">
-          {Array.from({ length: Math.floor((xhi - xlo) / xStep) + 1 }, (_, i) => xlo + i * xStep).map((v) => (
-            <g key={`x${v}`}>
-              <line x1={sx(v)} x2={sx(v)} y1={pad.t} y2={H - pad.b} stroke="var(--border)" strokeWidth={v === 0 ? 1.5 : 1} />
-              <text x={sx(v)} y={H - pad.b + 16} fontSize="10" textAnchor="middle" fill="var(--muted)">
-                {v > 0 ? `${v} p.p.` : v}
-              </text>
-            </g>
+      <div className="grid grid-cols-[8.5rem_1fr_7.5rem] items-center gap-x-3 text-sm">
+        <span />
+        <div className="relative h-5 text-xs text-muted">
+          {ticks.map((t) => (
+            <span key={t} className="absolute -translate-x-1/2" style={{ left: `${x(t)}%` }}>
+              {t}%
+            </span>
           ))}
-          {Array.from({ length: Math.floor((2 * yAbs) / yStep) + 1 }, (_, i) => -Math.floor(yAbs / yStep) * yStep + i * yStep).map((v) => (
-            <g key={`y${v}`}>
-              <line x1={pad.l} x2={W - pad.r} y1={sy(v)} y2={sy(v)} stroke="var(--border)" strokeWidth={v === 0 ? 1.5 : 1} />
-              <text x={pad.l - 6} y={sy(v) + 4} fontSize="10" textAnchor="end" fill="var(--muted)">
-                {v > 0 ? `+${v}` : v}
-              </text>
-            </g>
-          ))}
-          <text x={(pad.l + W - pad.r) / 2} y={H - 6} fontSize="11" textAnchor="middle" fill="var(--muted)">
-            queda da abstenção do 1º para o 2º turno (pontos percentuais)
-          </text>
-          <text x={pad.l + 6} y={pad.t + 12} fontSize="11" fill={colorA}>
-            {nameA} ganhou terreno ↑
-          </text>
-          <text x={pad.l + 6} y={H - pad.b - 6} fontSize="11" fill={colorB}>
-            {nameB} ganhou terreno ↓
-          </text>
-          {states.map((s) => (
-            <g key={s.uf} onClick={() => onPick(s.uf)} onPointerEnter={() => setHover(s)} onPointerLeave={() => setHover(null)} style={{ cursor: "pointer" }}>
-              <circle cx={sx(s.drop)} cy={sy(s.gainA)} r="14" fill="transparent" />
-              <circle
-                cx={sx(s.drop)}
-                cy={sy(s.gainA)}
-                r={s.uf === selected ? 7 : 5}
-                fill={s.gainA >= 0 ? colorA : colorB}
-                stroke={s.uf === selected ? "var(--text)" : "var(--surface)"}
-                strokeWidth="2"
-              />
-              <text x={sx(s.drop) + 8} y={sy(s.gainA) + 4} fontSize="10" fill="var(--text)" stroke="var(--surface)" strokeWidth="3" paintOrder="stroke">
-                {s.uf}
-              </text>
-            </g>
-          ))}
-        </svg>
-        {hover && (
-          <div
-            className="pointer-events-none absolute rounded-lg border border-border bg-surface px-3 py-2 text-xs shadow"
-            style={{ left: `${Math.min(70, (sx(hover.drop) / W) * 100)}%`, top: `${Math.min(70, (sy(hover.gainA) / H) * 100)}%` }}
-          >
-            <div className="font-semibold">{hover.name}</div>
-            <div>
-              Abstenção: {formatPct(hover.ab1)} → {formatPct(hover.ab2)}
-            </div>
-            <div>
-              Terreno: {hover.gainA >= 0 ? nameA : nameB} +{Math.abs(hover.gainA).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} pontos
-            </div>
-          </div>
-        )}
+        </div>
+        <span className="text-right text-xs text-muted">1º → 2º turno</span>
+        {rows.map((r) => {
+          const d = r.ab2 - r.ab1;
+          const down = d <= 0;
+          const sel = r.uf === selected;
+          return (
+            <button
+              key={r.uf}
+              type="button"
+              onClick={() => onPick(r.uf)}
+              className={`col-span-3 grid grid-cols-subgrid items-center rounded-md py-1 text-left hover:bg-accent/5 ${sel ? "bg-accent/10" : ""} ${r.uf === "BR" ? "border-b border-border font-semibold" : ""}`}
+              title={`${r.name}: ${formatPct(r.ab1)} no 1º turno → ${formatPct(r.ab2)} no 2º turno`}
+            >
+              <span className="truncate pl-1">{r.name}</span>
+              <span className="relative h-5">
+                {ticks.map((t) => (
+                  <span key={t} className="absolute inset-y-0 w-px bg-[var(--border)]" style={{ left: `${x(t)}%` }} />
+                ))}
+                <span
+                  className="absolute top-1/2 h-1 -translate-y-1/2 rounded"
+                  style={{ left: `${x(Math.min(r.ab1, r.ab2))}%`, width: `${Math.abs(x(r.ab2) - x(r.ab1))}%`, background: down ? "#059669" : "#d97706" }}
+                />
+                <span
+                  className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--surface)]"
+                  style={{ left: `${x(r.ab1)}%`, background: BAR1 }}
+                />
+                <span
+                  className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--surface)]"
+                  style={{ left: `${x(r.ab2)}%`, background: BAR2 }}
+                />
+              </span>
+              <span className="whitespace-nowrap pr-1 text-right tabular-nums">
+                <span className={`block font-semibold ${down ? "text-emerald-600" : "text-amber-600"}`}>{pp(d)}</span>
+                <span className="block text-xs text-muted">
+                  {r.ab1.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} → {r.ab2.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                </span>
+              </span>
+            </button>
+          );
+        })}
       </div>
+      {exterior && (
+        <p className="mt-2 text-sm text-muted">
+          <button type="button" onClick={() => onPick("ZZ")} className="underline hover:text-accent">
+            Exterior
+          </button>{" "}
+          (fora da escala): {formatPct(exterior.ab1)} → {formatPct(exterior.ab2)}{" "}
+          <span className={exterior.ab2 <= exterior.ab1 ? "text-emerald-600" : "text-amber-600"}>({pp(exterior.ab2 - exterior.ab1)})</span>
+        </p>
+      )}
     </figure>
   );
 }
