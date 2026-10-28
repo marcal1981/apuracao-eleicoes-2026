@@ -13,7 +13,7 @@
     "dev": "npm run dev -w @apuracao/web",
     "dev:mock": "npm run dev:mock -w @apuracao/web",
     "build": "npm run build -w @apuracao/web",
-    "start": "npm run start -w @apuracao/web",
+    "start": "node server.js",
     "test": "npm run test -w @apuracao/core",
     "typecheck": "npm run typecheck --workspaces --if-present"
   }

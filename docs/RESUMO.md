@@ -343,6 +343,7 @@ Página `/abstencao/perfil`:
 ## Publicar numa hospedagem (ex.: Hostinger, Node.js)
 
 - O build usa **Webpack** (`next build --webpack`): servidores com Linux antigo não carregam o compilador nativo do Next (erro `libm.so.6 ... not found` / `invalid ELF header`); o Next então usa a versão WASM, que só funciona com Webpack (o Turbopack, padrão do Next 16, exige o compilador nativo). Em desenvolvimento (`npm run dev`) continua o Turbopack.
-- Comandos: instalar `npm install`, build `npm run build`, iniciar `npm start`. Versão do Node: 20 ou 22.
+- Comandos: instalar `npm install`, build `npm run build`, iniciar `npm start` (= `node server.js`). Versão do Node: 20 ou 22.
+- **Hostinger (modo "Other")**: não há campo de comando de início; preencha **Arquivo de entrada = `server.js`** (na raiz do repositório), diretório raiz `./`, build `npm run build`, diretório de saída em branco. O `server.js` sobe o site compilado a partir de `apps/web` na porta `PORT` da hospedagem. O aviso `"next start" does not work with "output: standalone"` no log é inofensivo (o standalone é usado pelo Docker).
 - Variáveis do `.env` (ver `.env.example`) vão no painel da hospedagem. A pasta `data` precisa poder ser gravada (histórico da apuração, caches, downloads do TSE).
 - O sistema consulta o TSE em segundo plano: a hospedagem precisa manter o processo rodando (não "dormir" sem visitas) para guardar a evolução da apuração.
