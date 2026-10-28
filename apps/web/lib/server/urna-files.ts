@@ -14,6 +14,7 @@ import {
   type SectionRef,
 } from "@apuracao/core";
 import { USER_AGENT, type Ingestor } from "./ingestor";
+import { envCode } from "./config";
 import type { MunicipalityRegistry } from "./municipal";
 
 /** Pleito já encontrado, por código de eleição (cada turno tem o seu: 2026 → 3220 e 3221). */
@@ -21,7 +22,7 @@ const pleitoCache = new Map<string, string>();
 
 /** Código do pleito (turno) no TSE, lido do ele-c.json (ou TSE_PLEITO / TSE_PLEITO_R2 no .env). */
 export async function resolvePleito(ingestor: Ingestor): Promise<string> {
-  const fromEnv = ingestor.config.round === 2 ? process.env.TSE_PLEITO_R2 : process.env.TSE_PLEITO;
+  const fromEnv = envCode(ingestor.config.round === 2 ? "TSE_PLEITO_R2" : "TSE_PLEITO");
   if (fromEnv) return fromEnv;
   const election = electionCodeFor(ingestor.config.electionCodes, "governador");
   const cached = pleitoCache.get(election);

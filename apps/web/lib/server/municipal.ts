@@ -11,6 +11,7 @@ import {
   parseMunicipalityConfig,
 } from "@apuracao/core";
 import type { Ingestor } from "./ingestor";
+import { envText } from "./config";
 
 interface Municipality {
   ibge: string;
@@ -91,7 +92,7 @@ export class MunicipalityRegistry {
 }
 
 /** UFs com votação por cidade (precisam do desenho em public/maps/<uf>-municipios.json). */
-export const MUNICIPAL_UFS = (process.env.MUNICIPAL_UFS ?? "sp")
+export const MUNICIPAL_UFS = (envText("MUNICIPAL_UFS") ?? "sp")
   .split(",")
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);

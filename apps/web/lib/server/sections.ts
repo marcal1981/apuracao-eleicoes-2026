@@ -22,6 +22,7 @@ import {
 import type { Ingestor } from "./ingestor";
 import type { MunicipalityRegistry } from "./municipal";
 import { PollingPlaces } from "./locais";
+import { envCode, envText } from "./config";
 import { fetchBytes, resolvePleito, tseCodeOf } from "./urna-files";
 
 // 3: aptos e comparecimento lidos da eleição e conferidos com a soma dos votos (versões 1 e 2 guardaram números errados).
@@ -116,7 +117,7 @@ export class SectionAbstentionTracker {
     this.mock = ingestor.config.source === "mock";
     // O 2º turno tem pleito e boletins próprios: arquivo de cache separado.
     const round = ingestor.config.round === 2 ? "-t2" : "";
-    this.pleito = (ingestor.config.round === 2 ? process.env.TSE_PLEITO_R2 : process.env.TSE_PLEITO) || null;
+    this.pleito = envCode(ingestor.config.round === 2 ? "TSE_PLEITO_R2" : "TSE_PLEITO") ?? null;
     this.cacheFile = path.join(ingestor.config.dataDir, "cities", `secoes-${slug}${round}${this.mock ? "-mock" : ""}.json`);
     this.loaded = this.loadCache();
     this.places = new PollingPlaces(ingestor, uf, slug);
@@ -403,7 +404,7 @@ function mockRefs(): SectionRef[] {
 }
 
 /** Cidades com abstenção por seção (SECTION_CITIES="sp:São José dos Campos;…"). */
-export const SECTION_CITIES = (process.env.SECTION_CITIES ?? "sp:São José dos Campos")
+export const SECTION_CITIES = (envText("SECTION_CITIES") ?? "sp:São José dos Campos")
   .split(";")
   .map((s) => s.trim())
   .filter(Boolean)

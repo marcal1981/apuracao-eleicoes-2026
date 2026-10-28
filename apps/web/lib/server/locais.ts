@@ -4,6 +4,7 @@
 // outras cidades) e filtrado para a cidade, que fica em data/cities/locais-<cidade>.json.
 // Sem internet para o TSE, dá para colocar o .zip (ou o .csv) manualmente em data/locais/.
 
+import { envText } from "./config";
 import { createReadStream, createWriteStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -106,7 +107,7 @@ export class PollingPlaces {
   private async sources(): Promise<string[]> {
     const manual = await fs.readdir(this.manualDir).catch(() => [] as string[]);
     const local = manual.filter((f) => /\.(zip|csv)$/i.test(f)).map((f) => path.join(this.manualDir, f));
-    const custom = process.env.LOCAIS_VOTACAO_URL;
+    const custom = envText("LOCAIS_VOTACAO_URL");
     const year = this.ingestor.config.year;
     const remote = custom ? [custom] : [year, year - 2].map((y) => `${BASE_URL}/eleitorado_local_votacao_${y}.zip`);
     return [...local, ...remote];

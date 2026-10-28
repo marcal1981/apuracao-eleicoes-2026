@@ -21,7 +21,7 @@ import {
 } from "@apuracao/core";
 import type { AuditEvent, IngestionStatus, LiveEvent, PublishedRace, RaceSummary } from "../api-types";
 import { Archive } from "./archive";
-import { loadConfig, type AppConfig } from "./config";
+import { envCode, loadConfig, type AppConfig } from "./config";
 import { MUNICIPAL_UFS, MunicipalityRegistry } from "./municipal";
 import { CandidateCitiesTracker } from "./candidate-cities";
 import { AbstentionTracker } from "./abstention";
@@ -529,8 +529,8 @@ export function getSecondRoundIngestor(): Ingestor | null {
     ...main.config,
     round: 2,
     electionCodes: {
-      federal: process.env.TSE_ELECTION_FEDERAL_R2 || codes.federal,
-      state: process.env.TSE_ELECTION_STATE_R2 || codes.state,
+      federal: envCode("TSE_ELECTION_FEDERAL_R2") ?? codes.federal,
+      state: envCode("TSE_ELECTION_STATE_R2") ?? codes.state,
     },
     offices: ["presidente", "governador"],
   });

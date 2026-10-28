@@ -2,10 +2,11 @@
 // Não é dado oficial do TSE: serve só de referência enquanto o TSE não divulga o exterior.
 // A reportagem traz, por país, parágrafos como "2º turno: Lula, 6.017 votos (63,46%)2º turno: Flávio, 3.465 votos ...".
 
+import { envText } from "./config";
 import { USER_AGENT } from "./ingestor";
 
 export const G1_EXTERIOR_URL =
-  process.env.G1_EXTERIOR_URL ||
+  envText("G1_EXTERIOR_URL") ||
   "https://g1.globo.com/mundo/noticia/2026/10/25/votacao-no-exterior-confira-os-resultados-do-2o-turno-entre-lula-e-flavio-bolsonaro.ghtml";
 
 export interface G1Country {

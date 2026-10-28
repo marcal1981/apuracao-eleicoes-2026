@@ -5,6 +5,7 @@
 // lido em fluxo, e só o resumo fica guardado em data/cities/perfil-abstencao-<ano>.json. A cada 6 horas o
 // sistema confere se o TSE publicou versão nova (o 2º turno entra no mesmo arquivo, semanas depois).
 
+import { envText } from "./config";
 import { createWriteStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -114,7 +115,7 @@ class AbstentionProfile {
   constructor(private readonly ingestor: Ingestor) {
     const year = ingestor.config.year;
     this.source =
-      process.env.PERFIL_ABSTENCAO_URL ||
+      envText("PERFIL_ABSTENCAO_URL") ||
       `https://cdn.tse.jus.br/estatistica/sead/odsele/perfil_comparecimento_abstencao/perfil_comparecimento_abstencao_${year}.zip`;
     this.cacheFile = path.join(ingestor.config.dataDir, "cities", `perfil-abstencao-${year}.json`);
     this.zipFile = path.join(ingestor.config.dataDir, "downloads", path.basename(new URL(this.source).pathname));
