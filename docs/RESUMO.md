@@ -339,3 +339,10 @@ Página `/abstencao/perfil`:
 - **Perfil de quem faltou**, pelo arquivo de dados abertos do TSE `perfil_comparecimento_abstencao_<ano>.zip` (≈ 230 MB; baixado uma vez para `data/downloads` e resumido em `data/cities/perfil-abstencao-<ano>.json`): faixa etária, escolaridade, gênero, cor/raça, estado civil, voto obrigatório × facultativo e cidades do estado. O sistema confere a cada 6 h se o TSE publicou versão nova; quando o 2º turno entrar, os dois turnos aparecem lado a lado. Outro endereço: `PERFIL_ABSTENCAO_URL`.
 - **Cidades do estado nos dois turnos** (enquanto o TSE não publica o perfil oficial do 2º turno): abstenção de cada município no 2º turno (resultado oficial, lido uma vez e guardado em `data/cities/abstencao-2turno-<uf>.json`) ao lado do 1º turno; municípios agrupados em quintis por % de eleitores de 16 a 24 anos, % de 70 anos ou mais e tamanho do eleitorado, com a abstenção de cada grupo nos dois turnos; tabela de cidades (maior queda, maior alta…). Estimar a abstenção de cada idade pelos municípios (regressão ecológica) foi testado e descartado: resultados instáveis e implausíveis.
 
+
+## Publicar numa hospedagem (ex.: Hostinger, Node.js)
+
+- O build usa **Webpack** (`next build --webpack`): servidores com Linux antigo não carregam o compilador nativo do Next (erro `libm.so.6 ... not found` / `invalid ELF header`); o Next então usa a versão WASM, que só funciona com Webpack (o Turbopack, padrão do Next 16, exige o compilador nativo). Em desenvolvimento (`npm run dev`) continua o Turbopack.
+- Comandos: instalar `npm install`, build `npm run build`, iniciar `npm start`. Versão do Node: 20 ou 22.
+- Variáveis do `.env` (ver `.env.example`) vão no painel da hospedagem. A pasta `data` precisa poder ser gravada (histórico da apuração, caches, downloads do TSE).
+- O sistema consulta o TSE em segundo plano: a hospedagem precisa manter o processo rodando (não "dormir" sem visitas) para guardar a evolução da apuração.
