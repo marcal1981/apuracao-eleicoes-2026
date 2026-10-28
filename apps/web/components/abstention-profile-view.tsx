@@ -360,7 +360,7 @@ function TwoRounds({ area, name, nameA, nameB, colorA, colorB }: { area: Area; n
 
 type StateRow = Area & { ab1: number; ab2: number; drop: number; gainA: number };
 
-/** Abstenção de cada estado no 1º turno (cinza) e no 2º turno (verde), ligadas por uma linha: quanto mais longa, mais mudou. */
+/** Abstenção de cada estado em barras: 1º turno (cinza) e 2º turno (verde) lado a lado, com o valor escrito em cada uma. */
 function Dumbbell({
   states,
   brasil,
@@ -375,69 +375,63 @@ function Dumbbell({
   // O exterior (abstenção perto de 60%) achataria a escala dos estados: fica numa nota à parte.
   const exterior = states.find((s) => s.uf === "ZZ");
   const rows = [...(brasil ? [{ uf: "BR", name: "Brasil", ab1: brasil.ab1, ab2: brasil.ab2 }] : []), ...states.filter((s) => s.uf !== "ZZ")];
-  const lo = Math.floor(Math.min(...rows.map((r) => Math.min(r.ab1, r.ab2))) / 2) * 2;
-  const hi = Math.ceil(Math.max(...rows.map((r) => Math.max(r.ab1, r.ab2))) / 2) * 2;
-  const x = (v: number) => ((v - lo) / Math.max(1, hi - lo)) * 100;
-  const ticks = Array.from({ length: Math.floor((hi - lo) / 2) + 1 }, (_, i) => lo + i * 2);
+  const max = Math.ceil(Math.max(...rows.map((r) => Math.max(r.ab1, r.ab2))) / 5) * 5;
+  const w = (v: number) => `${(v / max) * 100}%`;
+  const f1 = (v: number) => `${v.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+  const ex = rows[0];
   return (
     <figure className="rounded-xl border border-border bg-surface p-4">
-      <figcaption className="mb-3">
+      <figcaption className="mb-3 space-y-1">
         <div className="font-semibold">Abstenção em cada estado: 1º turno × 2º turno</div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-muted">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-full" style={{ background: BAR1 }} /> 1º turno
+            <span className="inline-block h-3 w-6 rounded-sm" style={{ background: BAR1 }} /> 1º turno
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block h-3 w-3 rounded-full" style={{ background: BAR2 }} /> 2º turno
+            <span className="inline-block h-3 w-6 rounded-sm" style={{ background: BAR2 }} /> 2º turno
           </span>
-          <span>Linha verde: a abstenção caiu · linha laranja: subiu. Ordenado pela maior queda. Clique num estado para ver os detalhes.</span>
         </div>
+        {ex && (
+          <p className="text-sm text-muted">
+            Como ler: no {ex.name}, {f1(ex.ab1)} dos eleitores não votaram no 1º turno e {f1(ex.ab2)} no 2º turno — a barra verde menor que a
+            cinza quer dizer que mais gente foi votar. Ordenado do estado onde a abstenção mais caiu para onde mais subiu; clique num
+            estado para ver os detalhes.
+          </p>
+        )}
       </figcaption>
-      <div className="grid grid-cols-[8.5rem_1fr_7.5rem] items-center gap-x-3 text-sm">
-        <span />
-        <div className="relative h-5 text-xs text-muted">
-          {ticks.map((t) => (
-            <span key={t} className="absolute -translate-x-1/2" style={{ left: `${x(t)}%` }}>
-              {t}%
-            </span>
-          ))}
-        </div>
-        <span className="text-right text-xs text-muted">1º → 2º turno</span>
+      <div className="space-y-1">
         {rows.map((r) => {
           const d = r.ab2 - r.ab1;
           const down = d <= 0;
-          const sel = r.uf === selected;
           return (
             <button
               key={r.uf}
               type="button"
               onClick={() => onPick(r.uf)}
-              className={`col-span-3 grid grid-cols-subgrid items-center rounded-md py-1 text-left hover:bg-accent/5 ${sel ? "bg-accent/10" : ""} ${r.uf === "BR" ? "border-b border-border font-semibold" : ""}`}
-              title={`${r.name}: ${formatPct(r.ab1)} no 1º turno → ${formatPct(r.ab2)} no 2º turno`}
+              className={`grid w-full grid-cols-[9rem_1fr_6.5rem] items-center gap-x-3 rounded-md px-1 py-1.5 text-left text-sm hover:bg-accent/5 ${r.uf === selected ? "bg-accent/10" : ""} ${r.uf === "BR" ? "mb-1 border-b border-border pb-2 font-semibold" : ""}`}
             >
-              <span className="truncate pl-1">{r.name}</span>
-              <span className="relative h-5">
-                {ticks.map((t) => (
-                  <span key={t} className="absolute inset-y-0 w-px bg-[var(--border)]" style={{ left: `${x(t)}%` }} />
+              <span className="truncate">{r.name}</span>
+              <span className="space-y-1">
+                {[
+                  { v: r.ab1, c: BAR1, label: "1º" },
+                  { v: r.ab2, c: BAR2, label: "2º" },
+                ].map((b) => (
+                  <span key={b.label} className="flex items-center gap-2">
+                    <span className="block h-3 rounded-r" style={{ width: w(b.v), background: b.c }} />
+                    <span className="whitespace-nowrap text-xs tabular-nums">{f1(b.v)}</span>
+                  </span>
                 ))}
-                <span
-                  className="absolute top-1/2 h-1 -translate-y-1/2 rounded"
-                  style={{ left: `${x(Math.min(r.ab1, r.ab2))}%`, width: `${Math.abs(x(r.ab2) - x(r.ab1))}%`, background: down ? "#059669" : "#d97706" }}
-                />
-                <span
-                  className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--surface)]"
-                  style={{ left: `${x(r.ab1)}%`, background: BAR1 }}
-                />
-                <span
-                  className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[var(--surface)]"
-                  style={{ left: `${x(r.ab2)}%`, background: BAR2 }}
-                />
               </span>
-              <span className="whitespace-nowrap pr-1 text-right tabular-nums">
-                <span className={`block font-semibold ${down ? "text-emerald-600" : "text-amber-600"}`}>{pp(d)}</span>
-                <span className="block text-xs text-muted">
-                  {r.ab1.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} → {r.ab2.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
-                </span>
+              <span className={`whitespace-nowrap text-right font-semibold tabular-nums ${down ? "text-emerald-600" : "text-amber-600"}`}>
+                {Math.abs(d) < 0.05 ? (
+                  <span className="text-muted">igual</span>
+                ) : (
+                  <>
+                    {down ? "caiu " : "subiu "}
+                    {Math.abs(d).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    <span className="block text-xs font-normal text-muted">pontos</span>
+                  </>
+                )}
               </span>
             </button>
           );
@@ -448,7 +442,7 @@ function Dumbbell({
           <button type="button" onClick={() => onPick("ZZ")} className="underline hover:text-accent">
             Exterior
           </button>{" "}
-          (fora da escala): {formatPct(exterior.ab1)} → {formatPct(exterior.ab2)}{" "}
+          (fora das barras, por ter abstenção muito maior): {formatPct(exterior.ab1)} no 1º turno → {formatPct(exterior.ab2)} no 2º turno{" "}
           <span className={exterior.ab2 <= exterior.ab1 ? "text-emerald-600" : "text-amber-600"}>({pp(exterior.ab2 - exterior.ab1)})</span>
         </p>
       )}
