@@ -232,7 +232,15 @@ export function AbstentionProfileView() {
                       {signed(s.moreB)}
                     </td>
                     <td className="whitespace-nowrap px-3 py-2 text-right">
-                      {s.toA === null ? "—" : `${formatPct(s.toA)} · ${formatPct(100 - s.toA)}`}
+                      {s.toA !== null ? (
+                        `${formatPct(s.toA)} · ${formatPct(100 - s.toA)}`
+                      ) : s.moreA > 0 && s.moreB <= 0 ? (
+                        <span style={{ color: colorA }}>só {nameA} cresceu</span>
+                      ) : s.moreB > 0 && s.moreA <= 0 ? (
+                        <span style={{ color: colorB }}>só {nameB} cresceu</span>
+                      ) : (
+                        <span className="text-muted">os dois perderam votos</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -242,7 +250,7 @@ export function AbstentionProfileView() {
           <p className="text-xs text-muted">
             Variação negativa (verde) = a abstenção caiu no 2º turno. &quot;Dos votos a mais&quot;: como se dividiu, entre {nameA} e {nameB}, o
             aumento de votos dos dois do 1º para o 2º turno (vindo de quem voltou a votar, de quem votou nos demais candidatos e de quem votou
-            branco/nulo no 1º turno); &quot;—&quot; quando um dos dois perdeu votos.
+            branco/nulo no 1º turno). Quando um dos dois perdeu votos entre os turnos, a divisão não se aplica e aparece quem cresceu.
           </p>
         </>
       )}
