@@ -34,6 +34,26 @@ export interface TurnProfile {
   deficiencia: [number, number];
   /** código do município → [nome, aptos, comparecimento, abstenção] */
   cities: Record<string, [string, number, number, number]>;
+  /** código do município → faixa (AGE_BANDS) → [aptos, abstenção]; base da estimativa do 2º turno por idade */
+  cityBands: Record<string, number[][]>;
+}
+
+/** Faixas largas de idade usadas na estimativa (a menor idade de cada faixa). */
+export const AGE_BANDS = [
+  { label: "16 a 24 anos", from: 16 },
+  { label: "25 a 34 anos", from: 25 },
+  { label: "35 a 44 anos", from: 35 },
+  { label: "45 a 59 anos", from: 45 },
+  { label: "60 a 69 anos", from: 60 },
+  { label: "70 anos ou mais", from: 70 },
+];
+/** Faixa larga de um código de faixa etária do TSE (ex.: "2124" = 21 a 24 anos); -1 se inválido. */
+export function ageBandOf(code: string) {
+  const age = Number(code.length >= 4 ? code.slice(0, 2) : code);
+  if (!Number.isFinite(age) || age < 16) return -1;
+  let band = 0;
+  for (let i = 0; i < AGE_BANDS.length; i++) if (age >= AGE_BANDS[i]!.from) band = i;
+  return band;
 }
 
 interface Store {
@@ -57,7 +77,8 @@ export interface ProfileStatus {
   turns: number[];
 }
 
-const VERSION = 1;
+// 2: faixas de idade por município (estimativa do 2º turno).
+const VERSION = 2;
 const RECHECK_MS = 6 * 3600_000;
 const KEY = Symbol.for("apuracao.abstention-profile");
 
@@ -68,6 +89,7 @@ const emptyTurn = (): TurnProfile => ({
   facultativo: [0, 0],
   deficiencia: [0, 0],
   cities: {},
+  cityBands: {},
 });
 
 class AbstentionProfile {
@@ -228,7 +250,14 @@ class AbstentionProfile {
       t.facultativo[1] += num(g("QT_ABST_FACULTATIVO"));
       t.deficiencia[0] += num(g("QT_COMPARECIMENTO_DEFICIENCIA"));
       t.deficiencia[1] += num(g("QT_ABSTENCAO_DEFICIENCIA"));
-      const city = (t.cities[unq(g("CD_MUNICIPIO"))] ??= [unq(g("NM_MUNICIPIO")), 0, 0, 0]);
+      const cityCode = unq(g("CD_MUNICIPIO"));
+      const band = ageBandOf(unq(g("CD_FAIXA_ETARIA")));
+      if (band >= 0) {
+        const bands = (t.cityBands[cityCode] ??= AGE_BANDS.map(() => [0, 0]));
+        bands[band]![0]! += aptos;
+        bands[band]![1]! += abst;
+      }
+      const city = (t.cities[cityCode] ??= [unq(g("NM_MUNICIPIO")), 0, 0, 0]);
       city[1] += aptos;
       city[2] += comp;
       city[3] += abst;

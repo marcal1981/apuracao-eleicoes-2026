@@ -18,7 +18,7 @@ export function GET(req: NextRequest) {
   const turns = profile.profile(uf);
   // Municípios só por UF (o país inteiro teria mais de 5 mil).
   const data = turns
-    ? Object.fromEntries(Object.entries(turns).map(([t, p]) => [t, uf === "BR" ? { ...p, cities: {} } : p]))
+    ? Object.fromEntries(Object.entries(turns).map(([t, p]) => [t, { ...p, cityBands: undefined, cities: uf === "BR" ? {} : p.cities }]))
     : null;
   return json({ uf, status: profile.status, turns: data }, { maxAge: 30 });
 }

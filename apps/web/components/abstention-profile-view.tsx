@@ -535,6 +535,13 @@ function ProfileSection({
               <DimCard key={d.key} label={d.label} rows1={t1.dims[d.key] ?? {}} rows2={t2?.dims[d.key] ?? null} byCode={d.byCode} total={t1.total[2]} />
             ))}
           </div>
+          {!t2 && (uf === "BR" || uf === "ZZ" ? (
+            <p className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-muted">
+              Para ver a <strong>estimativa do 2º turno por faixa de idade</strong>, escolha um estado (ela usa os municípios do estado).
+            </p>
+          ) : (
+            <AgeEstimate uf={uf} name={name} />
+          ))}
           {uf !== "BR" && cities.length > 0 && (
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -663,3 +670,118 @@ function DimCard({
     </div>
   );
 }
+
+interface Estimate {
+  status: "waiting" | "loading" | "ready" | "error";
+  done?: number;
+  total?: number;
+  message?: string | null;
+  citiesUsed?: number;
+  citiesTotal?: number;
+  r2ActualRate?: number | null;
+  r2ModelRate?: number;
+  bands?: { label: string; aptos: number; share: number; r1Rate: number; r2Rate: number; delta: number; margin: number }[];
+}
+
+/** Abstenção do 2º turno por faixa de idade, estimada pelos municípios (enquanto o TSE não publica o perfil oficial). */
+function AgeEstimate({ uf, name }: { uf: string; name: string }) {
+  const [est, setEst] = useState<Estimate | null>(null);
+  useEffect(() => {
+    let stop = false;
+    const load = () =>
+      fetch(`/api/v1/abstencao/estimativa-idade?uf=${uf}`, { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d: Estimate) => {
+          if (stop) return;
+          setEst(d);
+          if (d.status === "ready" || d.status === "error") clearInterval(id);
+        })
+        .catch(() => {});
+    setEst(null);
+    const id = setInterval(load, 4_000);
+    load();
+    return () => {
+      stop = true;
+      clearInterval(id);
+    };
+  }, [uf]);
+
+  const bands = est?.bands ?? [];
+  const max = Math.max(1, ...bands.map((b) => Math.max(b.r1Rate, b.r2Rate + b.margin)));
+  const biggestDrop = [...bands].sort((a, b) => a.delta - b.delta)[0];
+  return (
+    <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4">
+      <div>
+        <h3 className="text-base font-semibold">Faixa etária: 1º turno (oficial) × 2º turno (estimativa) — {name}</h3>
+        <p className="text-xs text-muted">
+          O TSE ainda não publicou o perfil do 2º turno. Esta é uma <strong>estimativa estatística</strong>: cruza, em cada município, quantos
+          eleitores há em cada faixa de idade com quanto a abstenção do município mudou do 1º para o 2º turno. Se a abstenção caiu mais nos
+          municípios com mais jovens, a queda é atribuída aos jovens, e assim por diante.
+        </p>
+      </div>
+      {!est || est.status !== "ready" ? (
+        <p className="text-sm text-muted">
+          {est?.status === "loading"
+            ? `Lendo o 2º turno de cada município no TSE: ${est.done ?? 0} de ${est.total ?? "?"} (só na primeira vez)…`
+            : est?.status === "error"
+              ? est.message
+              : est?.message ?? "Preparando…"}
+        </p>
+      ) : (
+        <>
+          {biggestDrop && (
+            <p className="text-sm">
+              A maior queda estimada da abstenção foi entre <strong>{biggestDrop.label}</strong>: de {formatPct(biggestDrop.r1Rate)} para cerca de{" "}
+              <strong>{formatPct(biggestDrop.r2Rate)}</strong> ({pp(biggestDrop.delta)}, margem ± {biggestDrop.margin.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}).
+            </p>
+          )}
+          <ul className="space-y-2">
+            {bands.map((b) => (
+              <li key={b.label} className="grid grid-cols-[minmax(0,9rem)_1fr_auto] items-center gap-2 text-xs">
+                <span>
+                  {b.label}
+                  <span className="block text-[10px] text-muted">{formatPct(b.share)} do eleitorado</span>
+                </span>
+                <span className="space-y-0.5">
+                  <span className="block h-2.5 rounded-r" style={{ width: `${(b.r1Rate / max) * 100}%`, background: BAR1 }} />
+                  <span className="relative block h-2.5">
+                    <span className="absolute inset-y-0 left-0 rounded-r" style={{ width: `${(b.r2Rate / max) * 100}%`, background: BAR2 }} />
+                    <span
+                      className="absolute inset-y-0 rounded bg-[var(--text)] opacity-20"
+                      style={{ left: `${(Math.max(0, b.r2Rate - b.margin) / max) * 100}%`, width: `${((2 * b.margin) / max) * 100}%` }}
+                    />
+                  </span>
+                </span>
+                <span className="whitespace-nowrap text-right tabular-nums">
+                  {formatPct(b.r1Rate)} → <strong>{formatPct(b.r2Rate)}</strong>
+                  <span className={`block text-[10px] ${b.delta < 0 ? "text-emerald-600" : "text-amber-600"}`}>
+                    {pp(b.delta)} (± {b.margin.toLocaleString("pt-BR", { maximumFractionDigits: 1 })})
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-3 rounded-sm" style={{ background: BAR1 }} /> 1º turno (oficial)
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-3 rounded-sm" style={{ background: BAR2 }} /> 2º turno (estimado)
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-3 rounded-sm bg-[var(--text)] opacity-20" /> margem de 95%
+            </span>
+          </div>
+          <p className="text-xs text-muted">
+            Base: {formatInt(est.citiesUsed ?? 0)} de {formatInt(est.citiesTotal ?? 0)} municípios. Conferência: a estimativa soma{" "}
+            {formatPct(est.r2ModelRate ?? 0)} de abstenção no estado; o resultado oficial do 2º turno nesses municípios é{" "}
+            {est.r2ActualRate !== null && est.r2ActualRate !== undefined ? formatPct(est.r2ActualRate) : "—"}. Supõe que, em cada faixa, a mudança
+            foi parecida em todos os municípios do estado; margens largas indicam que os dados não separam bem aquela faixa. Quando o TSE
+            publicar o perfil oficial do 2º turno, os números oficiais substituem esta estimativa. {est.message ?? ""}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
