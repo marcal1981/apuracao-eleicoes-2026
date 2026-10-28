@@ -40,6 +40,11 @@
   --color-elected: var(--elected);
 }
 
+/* Letra um pouco maior em todo o site (tudo é medido em rem). */
+html {
+  font-size: 110%;
+}
+
 body {
   background: var(--bg);
   color: var(--text);

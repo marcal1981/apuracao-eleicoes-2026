@@ -241,6 +241,7 @@ export function AbstentionProfileView() {
         ready={!!ready}
         name={name}
         uf={uf}
+        official2={area?.r2 && area.r2.pct >= 100 ? { abstention: area.r2.abstention, electorate: area.r2.electorate } : null}
       />
     </section>
   );
@@ -452,11 +453,14 @@ function ProfileSection({
   ready,
   name,
   uf,
+  official2,
 }: {
   profile: ProfileData | null;
   ready: boolean;
   name: string;
   uf: string;
+  /** abstenção oficial do 2º turno (resultado), para comparar mesmo sem o perfil do 2º turno */
+  official2: { abstention: number; electorate: number } | null;
 }) {
   const st = profile?.status;
   const t1 = profile?.turns?.["1"] ?? null;
@@ -492,16 +496,39 @@ function ProfileSection({
         <>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { label: "Abstenção geral", c: t1.total[1], ab: t1.total[2], c2: t2 ? t2.total[1] : null, ab2: t2 ? t2.total[2] : null },
+              {
+                label: "Abstenção geral",
+                c: t1.total[1],
+                ab: t1.total[2],
+                c2: t2 ? t2.total[1] : official2 ? official2.electorate - official2.abstention : null,
+                ab2: t2 ? t2.total[2] : (official2?.abstention ?? null),
+              },
               { label: "Voto obrigatório (18 a 69 anos)", c: t1.obrigatorio[0], ab: t1.obrigatorio[1], c2: t2?.obrigatorio[0] ?? null, ab2: t2?.obrigatorio[1] ?? null },
               { label: "Voto facultativo (16–17, 70+ e analfabetos)", c: t1.facultativo[0], ab: t1.facultativo[1], c2: t2?.facultativo[0] ?? null, ab2: t2?.facultativo[1] ?? null },
             ].map((x) => (
               <div key={x.label} className="rounded-xl border border-border bg-surface p-3">
                 <div className="text-xs text-muted">{x.label}</div>
-                <div className="text-2xl font-bold">{formatPct(pct(x.ab, x.c + x.ab))}</div>
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="text-2xl font-bold">{formatPct(pct(x.ab, x.c + x.ab))}</span>
+                  {x.ab2 !== null && x.c2 !== null ? (
+                    <>
+                      <span className="text-muted">→</span>
+                      <span className="text-2xl font-bold" style={{ color: BAR2 }}>
+                        {formatPct(pct(x.ab2, x.c2 + x.ab2))}
+                      </span>
+                      <span
+                        className={`text-sm font-semibold ${pct(x.ab2, x.c2 + x.ab2) <= pct(x.ab, x.c + x.ab) ? "text-emerald-600" : "text-amber-600"}`}
+                      >
+                        {pp(pct(x.ab2, x.c2 + x.ab2) - pct(x.ab, x.c + x.ab))}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-xs text-amber-600">2º turno: o TSE ainda não publicou</span>
+                  )}
+                </div>
                 <div className="text-xs text-muted">
-                  {formatInt(x.ab)} faltaram (1º turno)
-                  {x.ab2 !== null && x.c2 !== null ? ` · 2º turno: ${formatPct(pct(x.ab2, x.c2 + x.ab2))}` : ""}
+                  1º turno: {formatInt(x.ab)} faltaram
+                  {x.ab2 !== null ? ` · 2º turno: ${formatInt(x.ab2)} (${signed(x.ab2 - x.ab)})` : ""}
                 </div>
               </div>
             ))}
@@ -579,6 +606,7 @@ function DimCard({
     <div className="rounded-xl border border-border bg-surface p-4">
       <div className="mb-2 flex flex-wrap items-baseline gap-x-3">
         <h3 className="text-sm font-semibold">{label}</h3>
+        {!rows2 && <span className="text-xs text-amber-600">2º turno: o TSE ainda não publicou este perfil</span>}
         <span className="flex items-center gap-1 text-xs text-muted">
           <span className="inline-block h-2 w-3 rounded-sm" style={{ background: BAR1 }} /> abstenção 1º turno
         </span>
@@ -624,7 +652,7 @@ interface CityData {
   cities?: Record<string, [number, number]>;
 }
 
-type CitySort = "queda" | "alta" | "alta2" | "maior1";
+type CitySort = "queda" | "alta" | "voltaram" | "alta2" | "maior1";
 
 /** As cidades do estado nos dois turnos: grupos por perfil do eleitorado e a tabela de cidades. */
 function CityCompare({ uf, name, names }: { uf: string; name: string; names: Record<string, Row4> }) {
@@ -658,7 +686,9 @@ function CityCompare({ uf, name, names }: { uf: string; name: string; names: Rec
         const c2 = data?.cities?.[code];
         const r1 = pct(abst, aptos);
         const r2 = c2 ? pct(c2[1], c2[0]) : null;
-        return { code, name: title(nm), aptos, r1, r2, d: r2 === null ? null : r2 - r1 };
+        // Eleitores que faltaram no 1º turno e votaram no 2º (saldo; negativo = faltaram mais no 2º).
+        const back = c2 ? abst - c2[1] : null;
+        return { code, name: title(nm), aptos, r1, r2, d: r2 === null ? null : r2 - r1, back };
       })
       .filter((c) => c.aptos >= 1000 && (!needle || c.name.toLowerCase().includes(needle)))
       .sort((a, b) =>
@@ -668,7 +698,9 @@ function CityCompare({ uf, name, names }: { uf: string; name: string; names: Rec
             ? (b.d ?? -99) - (a.d ?? -99)
             : sort === "alta2"
               ? (b.r2 ?? -1) - (a.r2 ?? -1)
-              : b.r1 - a.r1,
+              : sort === "voltaram"
+                ? (b.back ?? -1e9) - (a.back ?? -1e9)
+                : b.r1 - a.r1,
       )
       .slice(0, 25);
   }, [names, data, sort, q]);
@@ -740,6 +772,7 @@ function CityCompare({ uf, name, names }: { uf: string; name: string; names: Rec
             <select value={sort} onChange={(e) => setSort(e.target.value as CitySort)} className="rounded-lg border border-border bg-surface px-2 py-1 text-sm">
               <option value="queda">Maior queda da abstenção</option>
               <option value="alta">Maior alta da abstenção</option>
+              <option value="voltaram">Mais eleitores voltaram a votar</option>
               <option value="alta2">Maior abstenção no 2º turno</option>
               <option value="maior1">Maior abstenção no 1º turno</option>
             </select>
@@ -755,6 +788,10 @@ function CityCompare({ uf, name, names }: { uf: string; name: string; names: Rec
                   <th className="px-3 py-2 text-right">Abstenção 1º turno</th>
                   <th className="px-3 py-2 text-right">Abstenção 2º turno</th>
                   <th className="px-3 py-2 text-right">Variação</th>
+                  <th className="px-3 py-2 text-right">
+                    Voltaram a votar
+                    <span className="block font-normal">faltosos a menos</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -767,6 +804,7 @@ function CityCompare({ uf, name, names }: { uf: string; name: string; names: Rec
                     <td className={`whitespace-nowrap px-3 py-2 text-right font-semibold ${c.d !== null && c.d <= 0 ? "text-emerald-600" : "text-amber-600"}`}>
                       {c.d === null ? "—" : pp(c.d)}
                     </td>
+                    <td className="px-3 py-2 text-right">{c.back === null ? "—" : signed(c.back)}</td>
                   </tr>
                 ))}
               </tbody>
